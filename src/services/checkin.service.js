@@ -113,17 +113,23 @@ export const getCabins = async () => {
   return result.rows;
 };
 
+// REEMPLAZA LA FUNCIÓN generateQR POR ESTA:
 export const generateQR = async (checkInId) => {
   const checkInResult = await db.execute({ sql: 'SELECT status, qr_payload FROM check_ins WHERE id = ?', args: [checkInId] });
   if (checkInResult.rows.length === 0) { const e = new Error('Check-in not found'); e.code = 'ERR_NOT_FOUND'; e.statusCode = 404; throw e; }
   const checkIn = checkInResult.rows[0];
   if (checkIn.status !== 'IN_PROGRESS' && checkIn.status !== 'COMPLETED') { const e = new Error('Check-in is not ready'); e.code = 'ERR_CHECKIN_INCOMPLETE'; e.statusCode = 400; throw e; }
+  
   if (checkIn.qr_payload) return { qrBase64: checkIn.qr_payload };
-  const payload = { checkInId, boarding: 'SIERRA-MADRE', timestamp: Date.now() };
-  const qrBase64 = await QRCode.toDataURL(JSON.stringify(payload));
+  
+  // Apunta a nuestra nueva ruta del backend
+  const payload = `https://sierra-madre-checkin.onrender.com/api/check-in/boarding-pass/${checkInId}`;
+  
+  const qrBase64 = await QRCode.toDataURL(payload);
   await db.execute({ sql: 'UPDATE check_ins SET qr_payload = ? WHERE id = ?', args: [qrBase64, checkInId] });
   return { qrBase64 };
 };
+
 
 export const registerLuggage = async (data) => {
   const { checkInId, bagCount, totalWeightKg, isVip } = data;
@@ -157,4 +163,19 @@ export const processCheckout = async (checkInId, documentNumber) => {
   }
   await db.execute({ sql: "UPDATE check_ins SET status = 'COMPLETED' WHERE id = ?", args: [checkInId] });
   return { message: chargeMessage };
+};
+
+// AÑADE ESTA NUEVA FUNCIÓN AL FINAL DEL ARCHIVO:
+export const getBoardingPassData = async (checkInId) => {
+  const res = await db.execute({
+    sql: `SELECT c.id, c.status, p.first_name, p.last_name, cab.cabin_number, g.group_code 
+          FROM check_ins c
+          JOIN passengers p ON c.passenger_id = p.id
+          JOIN check_in_groups g ON p.group_id = g.id
+          LEFT JOIN cabins cab ON c.cabin_id = cab.id
+          WHERE c.id = ?`,
+    args: [checkInId]
+  });
+  if (res.rows.length === 0) return null;
+  return res.rows[0];
 };

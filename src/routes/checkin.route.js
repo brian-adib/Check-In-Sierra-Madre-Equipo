@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { initiate, confirmReservation, cabin, luggage, checkout, listCabins, qr } from '../controllers/checkin.controller.js';
+import { initiate, confirmReservation, cabin, luggage, checkout, listCabins, qr, boardingPass } from '../controllers/checkin.controller.js';
 
 const router = Router();
 
@@ -9,6 +9,7 @@ router.post('/cabin', cabin);
 router.post('/luggage', luggage);
 router.post('/checkout', checkout);
 router.get('/cabins', listCabins);
+router.get('/boarding-pass/:id', boardingPass); // <-- NUEVA RUTA
 router.get('/:id/qr', qr);
 
 export default router;
