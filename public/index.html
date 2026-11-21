@@ -34,6 +34,7 @@ body.dark .btn { color: #091514; }
 .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
 .btn.ghost:hover { background: var(--line); }
 .btn.danger { background: var(--err); color: #fff; }
+.btn.warn { background: var(--warn); color: #fff; }
 .btn.sm { min-height: 34px; padding: 6px 12px; font-size: 13px; }
 input, select { background: var(--card); border: 1.5px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; min-height: 42px; }
 input:focus, select:focus { border-color: var(--brass); outline: none; box-shadow: 0 0 0 3px #b08a4233; }
@@ -83,11 +84,12 @@ header.page-header { display: flex; justify-content: space-between; align-items:
 .log-item { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
 .log-item .hora { color: #6b7280; margin-right: 6px; }
 .log-item .servicio { color: var(--brass); font-weight: bold; }
-.log-item .ok { color: #86efac; } .log-item .err { color: #fca5a5; }
+.log-item .ok { color: #86efac; } .log-item .err { color: #fca5a5; } .log-item .warn { color: #fcd34d; }
 
 #toast { position: fixed; top: 20px; right: 20px; z-index: 99999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
 #toast div { background: var(--card); border-left: 4px solid var(--ok); color: var(--ink); padding: 12px 18px; border-radius: 8px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.15); animation: slideIn 0.3s ease; }
 #toast div.err { border-left-color: var(--err); }
+#toast div.warn { border-left-color: var(--warn); }
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
 /* ================= OPCIONES ================= */
@@ -173,13 +175,14 @@ const $ = s => document.querySelector(s);
 const logMock = (serv, msg, type="INFO") => {
   const log = $("#mock-log");
   const time = new Date().toLocaleTimeString();
-  const cl = type === "ERROR" ? "err" : (type.includes("OK") ? "ok" : "");
+  const cl = type === "ERROR" ? "err" : (type === "WARN" ? "warn" : (type.includes("OK") ? "ok" : ""));
   log.innerHTML += `<div class="log-item"><span class="hora">${time}</span><span class="servicio">[${type} ${serv}]</span> <span class="${cl}">${msg}</span></div>`;
   log.scrollTop = log.scrollHeight;
 };
 const toast = (m, type="ok") => {
   const d = document.createElement("div"); d.textContent = m;
   if(type==="err") d.className="err";
+  else if(type==="warn") d.className="warn";
   $("#toast").append(d);
   setTimeout(()=>d.remove(), 3000);
 };
@@ -271,7 +274,6 @@ async function iniciarCheckin(id) {
 
 function renderWizard() {
   const r = W.r;
-  // AHORA SON 4 PASOS: Docs+Reserva, Cabina, Equipaje, Pase
   const steps = ["Docs y Reserva (ST02/ST05)", "Cabina (ST06)", "Equipaje (ST07)", "Pase QR"];
   
   $("#view").innerHTML = `
@@ -321,9 +323,17 @@ function renderWizard() {
         <div><label>Piezas (Pieza_equipaje)</label><input type="number" id="eq-n" value="${W.mal.n}"></div>
         <div><label>Peso (kg)</label><input type="number" id="eq-kg" value="${W.mal.kg}"></div>
       </div>
+      <div class="note warn mt" id="error-equipaje-msg" style="display:none;">
+        <b>Error reportado por Embarque:</b> Se ha informado a Cabinas sobre el inconveniente con el equipaje.
+      </div>
       <div class="row mt sp">
-        <button class="btn ghost" onclick="W.step=2; renderWizard()">Atrás</button>
-        <button class="btn" onclick="enviarEquipaje()">Enviar a Embarque</button>
+        <div>
+          <button class="btn warn sm" onclick="simularErrorEquipaje()">Simular Error de Equipaje</button>
+        </div>
+        <div class="row">
+          <button class="btn ghost" onclick="W.step=2; renderWizard()">Atrás</button>
+          <button class="btn" onclick="enviarEquipaje()">Enviar a Embarque</button>
+        </div>
       </div>
     `;
   }
@@ -351,6 +361,9 @@ function renderCabinas(body, r) {
     <div class="grid mt">
       ${disps.map(c => `<button class="opt" onclick="seleccionarCabina('${c.id}', this)"><b>${c.num}</b><br><span class="mut">Piso ${c.deck}</span></button>`).join("")}
     </div>
+    <div class="note ok mt" id="tarjeta-msg" style="display:none;">
+      <b>Tarjeta de cabina (RFID) entregada al pasajero.</b>
+    </div>
     <div class="row mt sp">
       <button class="btn ghost" onclick="W.step=1; renderWizard()">Atrás</button>
       <button class="btn" id="btn-next-cab" disabled onclick="W.step=3; renderWizard()">Confirmar Cabina y Entregar Tarjeta</button>
@@ -372,11 +385,13 @@ async function seleccionarCabina(id, btn) {
     const data = await res.json();
     if (data.success) {
       document.getElementById('btn-next-cab').disabled = false;
-      logMock("ST06", `Cabina ${W.cab.num} asignada`, "OK");
+      document.getElementById('tarjeta-msg').style.display = 'block';
+      logMock("ST06", `Cabina ${W.cab.num} asignada. Tarjeta entregada.`, "OK");
     } else { toast("Error asignando cabina", "err"); }
   } catch (e) {
     document.getElementById('btn-next-cab').disabled = false;
-    logMock("ST06", `Cabina ${W.cab.num} (Mock)`, "OK");
+    document.getElementById('tarjeta-msg').style.display = 'block';
+    logMock("ST06", `Cabina ${W.cab.num} asignada. Tarjeta entregada.`, "OK");
   }
 }
 
@@ -399,7 +414,14 @@ async function enviarEquipaje() {
   }, 600);
 }
 
-/* NUEVO: ENVIAR A RESERVACIONES (ST05) */
+function simularErrorEquipaje() {
+  logMock("ST07", "Error con el equipaje reportado por Embarque", "WARN");
+  logMock("ST07", "Informando a Cabinas sobre el error del equipaje", "WARN");
+  document.getElementById('error-equipaje-msg').style.display = 'block';
+  toast("Error de equipaje informado a Cabinas", "warn");
+}
+
+/* NUEVO: ENVIAR A RESERVACIONES (ST05) CON FR011 */
 async function enviarAReservaciones() {
   const btn = document.querySelector('button[onclick="enviarAReservaciones()"]');
   const originalText = btn.textContent;
@@ -418,8 +440,15 @@ async function enviarAReservaciones() {
     if (data.success) {
       logMock("ST05", "200 OK · Reservaciones confirmó el Check-in", "OK");
       toast("Reservaciones ha validado al pasajero. Continuando...");
-      W.step = 2; // Avanza a cabina
-      renderWizard();
+      
+      // Simulando exportación FR011
+      setTimeout(() => {
+        logMock("ST05", "Exportando registro FR011...", "INFO");
+        toast("Registro FR011 exportado exitosamente");
+        W.step = 2; 
+        renderWizard();
+      }, 800);
+      
     } else {
       logMock("ST05", data.error.message, "ERROR");
       toast("Error: " + data.error.message, "err");
