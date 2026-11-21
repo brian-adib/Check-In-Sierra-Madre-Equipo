@@ -3,8 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Check-in · Sierra Madre Resort & Casino</title>
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet">
+<title>Sierra Madre · Terminal Marítima</title>
+<!-- FAVICON -->
+<link rel="icon" type="image/png" href="/favicon.png">
+
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 /* ================= VARIABLES Y BASE ================= */
 :root {
@@ -66,16 +69,39 @@ body.dark .sidebar { background: #0c1a19; border-right: 1px solid var(--line); }
 .nav-item.active { background: var(--brass); color: #0c1f1d; }
 .sidebar-foot { padding: 16px; border-top: 1px solid rgba(255,255,255,0.1); display: grid; gap: 8px; }
 
-/* ================= MAIN ================= */
-.main-content { flex: 1; padding: 32px; max-width: 1200px; margin: 0 auto; width: 100%; overflow-y: auto; height: 100dvh; }
+/* ================= MAIN & HEADER ================= */
+.main-content { flex: 1; padding: 32px; max-width: 1400px; margin: 0 auto; width: 100%; overflow-y: auto; height: 100dvh; }
 header.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+.header-stats { display: flex; gap: 20px; align-items: center; }
+.stat-pill { background: var(--card); border: 1px solid var(--line); padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
 .clock { font: 600 22px 'Newsreader', serif; font-variant-numeric: tabular-nums; }
 
-/* ================= WIZARD & STEPS ================= */
+/* ================= DASHBOARD STATS ================= */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; border-left: 4px solid var(--sea); }
+.stat-card.warn { border-left-color: var(--warn); }
+.stat-card.ok { border-left-color: var(--ok); }
+.stat-card h4 { font-size: 13px; color: var(--mut); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.stat-card .value { font: 600 32px 'Newsreader', serif; color: var(--ink); }
+
+/* ================= WIZARD LAYOUT ================= */
+.wizard-layout { display: grid; grid-template-columns: 1fr 300px; gap: 24px; align-items: start; }
 .steps { display: flex; gap: 0; margin-bottom: 24px; overflow-x: auto; background: var(--card); border-radius: var(--r); border: 1px solid var(--line); padding: 10px 10px 0; }
 .steps li { list-style: none; flex: 1; min-width: 90px; padding: 0 0 12px; border-bottom: 3px solid var(--line); font-size: 12px; font-weight: 600; color: var(--mut); text-align: center; transition: 0.2s; }
 .steps li.done { border-color: var(--sea2); color: var(--ink); }
 .steps li.cur { border-color: var(--brass); color: var(--ink); font-weight: 700; }
+.summary-panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; position: sticky; top: 32px; }
+
+/* ================= TICKET ================= */
+.ticket-container { max-width: 500px; margin: 0 auto; background: var(--card); border: 2px dashed var(--line); border-radius: 12px; padding: 30px; position: relative; overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
+.ticket-header { text-align: center; border-bottom: 2px dashed var(--line); padding-bottom: 20px; margin-bottom: 20px; }
+.ticket-header h2 { color: var(--sea); font-size: 24px; margin-bottom: 4px; }
+.ticket-header p { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: var(--mut); }
+.ticket-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.ticket-item label { display: block; font-size: 10px; text-transform: uppercase; color: var(--mut); font-weight: 700; letter-spacing: 1px; margin-bottom: 4px; }
+.ticket-item div { font-size: 16px; font-weight: 600; color: var(--ink); font-family: 'JetBrains Mono', monospace; }
+.ticket-qr { display: flex; justify-content: center; align-items: center; padding: 20px 0; border-top: 2px dashed var(--line); border-bottom: 2px dashed var(--line); margin-bottom: 20px; min-height: 190px; }
+.ticket-footer { text-align: center; font-size: 12px; color: var(--mut); }
 
 /* ================= MOCK PANEL ================= */
 .mock-panel { position: fixed; bottom: 75px; right: 20px; width: 380px; max-height: 400px; background: #051510; color: #fff; border-radius: 10px; padding: 16px; font-family: 'Courier New', monospace; font-size: 11px; overflow-y: auto; z-index: 9999; border: 1px solid var(--brass); display: none; }
@@ -93,11 +119,20 @@ header.page-header { display: flex; justify-content: space-between; align-items:
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
 /* ================= OPCIONES ================= */
-.opt { border: 1.5px solid var(--line); border-radius: var(--r); padding: 16px; cursor: pointer; background: var(--card); text-align: left; width: 100%; transition: 0.2s; }
+.opt { border: 1.5px solid var(--line); border-radius: var(--r); padding: 16px; cursor: pointer; background: var(--card); text-align: left; width: 100%; transition: 0.2s; display: flex; justify-content: space-between; align-items: center; }
 .opt:hover:not(:disabled) { border-color: var(--brass); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 .opt[aria-pressed=true] { border-color: var(--brass); background: var(--brassbg); }
 .opt:disabled { opacity: .45; cursor: not-allowed; }
-.opt b { display: block; font-size: 16px; margin-bottom: 4px; }
+
+/* ================= PRINT ================= */
+@media print {
+  body * { visibility: hidden; }
+  .ticket-container, .ticket-container * { visibility: visible; }
+  .ticket-container { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none; border: 2px solid #000; }
+  .sidebar, header, .steps, .btn, .summary-panel, .page-header { display: none !important; }
+  body { background: #fff; color: #000; }
+  .ticket-header h2 { color: #000; }
+}
 </style>
 </head>
 <body>
@@ -114,9 +149,7 @@ header.page-header { display: flex; justify-content: space-between; align-items:
     <button class="role-btn" id="btn-rol-gerente" onclick="cambiarRol('gerente')">Gerente</button>
   </div>
 
-  <nav class="sidebar-nav" id="sidebar-nav">
-    <!-- Navegación dinámica -->
-  </nav>
+  <nav class="sidebar-nav" id="sidebar-nav"></nav>
 
   <div class="sidebar-foot">
     <button class="btn sm" style="background:rgba(255,255,255,0.1); color:#fff;" onclick="document.body.classList.toggle('dark')">Tema</button>
@@ -130,7 +163,11 @@ header.page-header { display: flex; justify-content: space-between; align-items:
       <h2 id="page-title">Recepción</h2>
       <p class="mut" id="page-subtitle">Gestiona el check-in de pasajeros.</p>
     </div>
-    <div class="clock" id="clock">--:--:--</div>
+    <div class="header-stats">
+      <div class="stat-pill"><span style="color:var(--ok)">●</span> Turno Matutino</div>
+      <div class="stat-pill">Agente: Admin</div>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
   </header>
   <div id="view"></div>
 </main>
@@ -210,7 +247,7 @@ function cambiarRol(rol) {
 function irVista(v) {
   vistaActual = v;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  if (v === 'inicio') { $("#page-title").textContent = "Recepción (Check-in)"; renderInicio(); }
+  if (v === 'inicio') { $("#page-title").textContent = "Dashboard de Recepción"; renderInicio(); }
   else if (v === 'checkout') { $("#page-title").textContent = "Módulo Check-out"; renderCheckout(); }
   else if (v === 'gerente') { $("#page-title").textContent = "Panel del Gerente"; renderGerente(); }
 }
@@ -218,9 +255,24 @@ function irVista(v) {
 /* ================= FLUJO RECEPCIÓN ================= */
 function renderInicio() {
   $("#view").innerHTML = `
-    <div class="row sp">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <h4>Check-ins Pendientes</h4>
+        <div class="value">${Object.keys(RES).length}</div>
+      </div>
+      <div class="stat-card ok">
+        <h4>Cabinas Disponibles</h4>
+        <div class="value">4</div>
+      </div>
+      <div class="stat-card warn">
+        <h4>Pagos Pendientes</h4>
+        <div class="value">1</div>
+      </div>
+    </div>
+
+    <div class="row sp mt">
       <h3>Reservaciones en el Sistema (ST01)</h3>
-      <span class="mut">Selecciona una reservación de la lista para iniciar el flujo.</span>
+      <input type="text" placeholder="Buscar por nombre o código..." style="max-width:300px; border-radius:20px;">
     </div>
     
     <div class="grid mt">
@@ -231,15 +283,17 @@ function renderInicio() {
         
         return `
           <button class="opt" onclick="iniciarCheckin('${id}')">
-            <div class="row sp">
-              <b>${id}</b>
-              ${isMinorOnly ? '<span class="tag err">Menores Solos</span>' : ''}
+            <div>
+              <div class="row sp" style="width:200px;">
+                <b>${id}</b>
+                ${isMinorOnly ? '<span class="tag err">Menores Solos</span>' : ''}
+              </div>
+              <span class="mut" style="margin-top:8px; display:block;">${r.tipo} · ${r.pax.length} pax</span>
+              <div style="margin-top:12px; font-size:12px; color:var(--mut);">
+                ${hasMinor ? 'Incluye menores' : 'Solo adultos'}
+              </div>
             </div>
-            <span class="mut" style="margin-top:8px; display:block;">${r.tipo} · ${r.pax.length} pasajero(s)</span>
-            <div class="mt" style="border-top: 1px solid var(--line); padding-top: 8px; display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-size:12px; color:var(--mut);">${hasMinor ? 'Incluye menores' : 'Solo adultos'}</span>
-              <span style="font-size:12px; color:var(--sea); font-weight:600;">Iniciar &rarr;</span>
-            </div>
+            <div class="tag vip">Iniciar &rarr;</div>
           </button>
         `;
       }).join("")}
@@ -272,14 +326,35 @@ async function iniciarCheckin(id) {
   }
 }
 
-function renderWizard() {
+// FIX: Se agregó async a esta función
+async function renderWizard() {
   const r = W.r;
-  const steps = ["Docs y Reserva (ST02/ST05)", "Cabina (ST06)", "Equipaje (ST07)", "Pase QR"];
+  const steps = ["Docs y Reserva", "Cabina", "Equipaje", "Ticket"];
   
   $("#view").innerHTML = `
-    <div class="card">
-      <ol class="steps">${steps.map((s,i) => `<li class="${i+1<W.step?"done":i+1===W.step?"cur":""}">${i+1}. ${s}</li>`).join("")}</ol>
-      <div id="wizard-body"></div>
+    <div class="wizard-layout">
+      <div>
+        <ol class="steps">${steps.map((s,i) => `<li class="${i+1<W.step?"done":i+1===W.step?"cur":""}">${i+1}. ${s}</li>`).join("")}</ol>
+        <div class="card" id="wizard-card">
+          <div id="wizard-body"></div>
+        </div>
+      </div>
+      
+      <div class="summary-panel">
+        <h4 style="color:var(--sea); margin-bottom:12px;">Resumen del Pasajero</h4>
+        <div style="margin-bottom:16px;">
+          <label>Reservación</label>
+          <div style="font-family:'JetBrains Mono', monospace; font-weight:600; font-size:18px;">${W.id}</div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label>Grupo</label>
+          <div>${r.pax.map(p=>p.n).join(", ")}</div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label>Cabina Asignada</label>
+          <div id="summary-cabin" style="font-weight:600; color:var(--warn);">Sin asignar</div>
+        </div>
+      </div>
     </div>
   `;
   const body = $("#wizard-body");
@@ -293,9 +368,7 @@ function renderWizard() {
         ${r.pax.map(p => `<tr><td>${p.n}</td><td>${p.e}</td><td>${p.d}</td></tr>`).join("")}
       </table>
       <div class="row mt sp">
-        <div>
-          <button class="btn ghost sm" onclick="documentoInvalido()">Documento Inválido (ST03)</button>
-        </div>
+        <button class="btn ghost sm" onclick="documentoInvalido()">Documento Inválido (ST03)</button>
         <div class="row">
           <button class="btn ghost" onclick="irVista('inicio')">Cancelar</button>
           <button class="btn" onclick="enviarAReservaciones()">Enviar a Reservaciones (ST05)</button>
@@ -320,37 +393,83 @@ function renderWizard() {
     body.innerHTML = `
       <h3>Paso 3: Enviar Información de Equipaje (ST07)</h3>
       <div class="grid mt">
-        <div><label>Piezas (Pieza_equipaje)</label><input type="number" id="eq-n" value="${W.mal.n}"></div>
+        <div><label>Piezas</label><input type="number" id="eq-n" value="${W.mal.n}"></div>
         <div><label>Peso (kg)</label><input type="number" id="eq-kg" value="${W.mal.kg}"></div>
       </div>
       <div class="note warn mt" id="error-equipaje-msg" style="display:none;">
         <b>Error reportado por Embarque:</b> Se ha informado a Cabinas sobre el inconveniente con el equipaje.
       </div>
       <div class="row mt sp">
-        <div>
-          <button class="btn warn sm" onclick="simularErrorEquipaje()">Simular Error de Equipaje</button>
-        </div>
+        <button class="btn warn sm" onclick="simularErrorEquipaje()">Simular Error de Equipaje</button>
         <div class="row">
           <button class="btn ghost" onclick="W.step=2; renderWizard()">Atrás</button>
-          <button class="btn" onclick="enviarEquipaje()">Enviar a Embarque</button>
+          <button class="btn" onclick="enviarEquipaje()">Generar Ticket Final</button>
         </div>
       </div>
     `;
   }
   else if (W.step === 4) {
     body.innerHTML = `
-      <div style="text-align:center; padding: 20px;">
+      <div style="text-align:center; margin-bottom: 20px;">
         <h3 style="color:var(--ok);">Check-in Completado</h3>
-        <p class="mut">El pasajero ha sido registrado y su pase QR está listo.</p>
-        <div class="qr-wrap mt" style="display:inline-block; border: 2px solid var(--brass); padding: 10px; background: #fff; border-radius: 8px;">
-           <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${W.id}" alt="QR" />
+        <p class="mut">Imprime y entrega este ticket al pasajero.</p>
+      </div>
+
+      <div class="ticket-container">
+        <div class="ticket-header">
+          <h2>Sierra Madre</h2>
+          <p>Boarding Pass / Ticket de Embarque</p>
         </div>
-        <div class="mt">
-          <button class="btn" onclick="irVista('inicio')">Volver al Inicio</button>
+        
+        <div class="ticket-grid">
+          <div class="ticket-item">
+            <label>Reservación</label>
+            <div>${W.id}</div>
+          </div>
+          <div class="ticket-item">
+            <label>Cabina</label>
+            <div>${W.cab ? W.cab.num : 'N/A'}</div>
+          </div>
+          <div class="ticket-item">
+            <label>Pasajeros</label>
+            <div>${r.pax.length} pers.</div>
+          </div>
+          <div class="ticket-item">
+            <label>Equipaje</label>
+            <div>${W.mal.n} pz / ${W.mal.kg} kg</div>
+          </div>
+        </div>
+
+        <div class="ticket-qr" id="ticket-qr-container">
+            <div class="spinner" style="border-top-color: var(--sea); width: 30px; height: 30px;"></div>
+        </div>
+
+        <div class="ticket-footer">
+          <p>Escanear en el punto de embarque</p>
+          <p style="margin-top:4px; font-size:10px;">ID: ${currentCheckInId || 'MOCK'}</p>
         </div>
       </div>
+
+      <div class="row mt" style="justify-content:center; gap: 16px;">
+        <button class="btn" onclick="window.print()">Imprimir Ticket</button>
+        <button class="btn ghost" onclick="irVista('inicio')">Volver al Dashboard</button>
+      </div>
     `;
-    logMock("SU02", "Exportando pase de abordar", "OK");
+    logMock("SU02", "Exportando pase de abordar / Ticket", "OK");
+
+    try {
+      const res = await fetch(`/api/check-in/${currentCheckInId}/qr`);
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('ticket-qr-container').innerHTML = `
+          <img src="${data.data.qrBase64}" style="width:150px; height:150px; object-fit: contain;" alt="QR" />
+        `;
+      } else { throw new Error(); }
+    } catch (err) {
+      document.getElementById('ticket-qr-container').innerHTML = `
+        <p class="mut" style="font-size: 12px;">(QR no disponible en modo demo)</p>
+      `;
+    }
   }
 }
 
@@ -359,24 +478,30 @@ function renderCabinas(body, r) {
   body.innerHTML = `
     <h3>Paso 2: Asignar Cabina (ST06)</h3>
     <div class="grid mt">
-      ${disps.map(c => `<button class="opt" onclick="seleccionarCabina('${c.id}', this)"><b>${c.num}</b><br><span class="mut">Piso ${c.deck}</span></button>`).join("")}
+      ${disps.map(c => `<button class="opt" onclick="seleccionarCabina('${c.id}', '${c.num}', this)"><b>${c.num}</b><br><span class="mut">Piso ${c.deck}</span></button>`).join("")}
     </div>
     <div class="note ok mt" id="tarjeta-msg" style="display:none;">
       <b>Tarjeta de cabina (RFID) entregada al pasajero.</b>
     </div>
     <div class="row mt sp">
       <button class="btn ghost" onclick="W.step=1; renderWizard()">Atrás</button>
-      <button class="btn" id="btn-next-cab" disabled onclick="W.step=3; renderWizard()">Confirmar Cabina y Entregar Tarjeta</button>
+      <button class="btn" id="btn-next-cab" disabled onclick="W.step=3; renderWizard()">Confirmar y Entregar Tarjeta</button>
     </div>
   `;
 }
 
-async function seleccionarCabina(id, btn) {
+async function seleccionarCabina(id, num, btn) {
   document.querySelectorAll('.opt').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
   W.cab = CABS.find(c => c.id === id);
   
-  logMock("ST06", `POST /cabin (${W.cab.num})`, "INFO");
+  const summaryCab = document.getElementById("summary-cabin");
+  if (summaryCab) {
+    summaryCab.textContent = `Cabina ${num}`;
+    summaryCab.style.color = "var(--ok)";
+  }
+
+  logMock("ST06", `POST /cabin (${num})`, "INFO");
   try {
     const res = await fetch('/api/check-in/cabin', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -386,12 +511,12 @@ async function seleccionarCabina(id, btn) {
     if (data.success) {
       document.getElementById('btn-next-cab').disabled = false;
       document.getElementById('tarjeta-msg').style.display = 'block';
-      logMock("ST06", `Cabina ${W.cab.num} asignada. Tarjeta entregada.`, "OK");
-    } else { toast("Error asignando cabina", "err"); }
+      logMock("ST06", `Cabina ${num} asignada`, "OK");
+    }
   } catch (e) {
     document.getElementById('btn-next-cab').disabled = false;
     document.getElementById('tarjeta-msg').style.display = 'block';
-    logMock("ST06", `Cabina ${W.cab.num} asignada. Tarjeta entregada.`, "OK");
+    logMock("ST06", `Cabina ${num} (Mock)`, "OK");
   }
 }
 
@@ -421,7 +546,6 @@ function simularErrorEquipaje() {
   toast("Error de equipaje informado a Cabinas", "warn");
 }
 
-/* NUEVO: ENVIAR A RESERVACIONES (ST05) CON FR011 */
 async function enviarAReservaciones() {
   const btn = document.querySelector('button[onclick="enviarAReservaciones()"]');
   const originalText = btn.textContent;
@@ -438,10 +562,9 @@ async function enviarAReservaciones() {
     const data = await res.json();
 
     if (data.success) {
-      logMock("ST05", "200 OK · Reservaciones confirmó el Check-in", "OK");
+      logMock("ST05", "200 OK · Reservaciones confirmó", "OK");
       toast("Reservaciones ha validado al pasajero. Continuando...");
       
-      // Simulando exportación FR011
       setTimeout(() => {
         logMock("ST05", "Exportando registro FR011...", "INFO");
         toast("Registro FR011 exportado exitosamente");
@@ -462,7 +585,6 @@ async function enviarAReservaciones() {
   }
 }
 
-/* ================= FLUJO CORRECCIÓN (ST03/ST04) ================= */
 function documentoInvalido() {
   logMock("ST03", "Informando al pasajero - Documento inválido", "INFO");
   W.docsValidos = false;
@@ -474,9 +596,15 @@ function documentoInvalido() {
 /* ================= FLUJO GERENTE ================= */
 function renderGerente() {
   $("#view").innerHTML = `
-    <div class="card">
+    <div class="stats-grid">
+      <div class="stat-card warn">
+        <h4>Excepciones Pendientes</h4>
+        <div class="value">${S.excepciones.length}</div>
+      </div>
+    </div>
+    <div class="card mt">
       <h3>Bandeja de Excepciones (ST04)</h3>
-      <p class="mut mt">El Recepcionista ha solicitado autorización para check-ins con documentos inválidos.</p>
+      <p class="mut mt">Solicitudes de autorización para check-ins con documentos inválidos.</p>
       <div class="grid mt">
         ${S.excepciones.length === 0 ? '<div class="note">No hay solicitudes pendientes.</div>' : ''}
         ${S.excepciones.map((e, i) => `
@@ -511,7 +639,7 @@ function resolverExcepcion(index, autorizar) {
   if (W) { renderWizard(); } else { renderInicio(); }
 }
 
-/* ================= FLUJO CHECK-OUT (BPMN EXACTO) ================= */
+/* ================= FLUJO CHECK-OUT ================= */
 function renderCheckout() {
   checkoutW = { step: 1, id: null, hasDamage: false };
   renderCheckoutStep();
