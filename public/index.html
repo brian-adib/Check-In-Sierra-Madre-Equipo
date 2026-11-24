@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sierra Madre · Terminal Marítima</title>
-<!-- FAVICON -->
 <link rel="icon" type="image/png" href="/favicon.png">
-
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 /* ================= VARIABLES Y BASE ================= */
@@ -194,16 +192,16 @@ let checkoutW = null;
 
 /* 10 Reservaciones de Prueba */
 const RES = {
- "FAM-001": { tipo:"Balcón Premium", pax:[{n:"Ana Perez",e:34,d:"11111111"}, {n:"Leo Perez",e:10,d:"22222222"}] },
- "FAM-002": { tipo:"Suite Presidencial", pax:[{n:"Carlos Mendoza",e:52,d:"PAS-771203"}, {n:"Patricia Guzman",e:49,d:"PAS-771204"}, {n:"Sofia Mendoza",e:17,d:"PAS-771205"}] },
- "FAM-003": { tipo:"Vista al mar", pax:[{n:"John Doe",e:45,d:"US-998877"}, {n:"Jane Doe",e:43,d:"US-998878"}] },
- "FAM-004": { tipo:"Interior", pax:[{n:"Roberto Jimenez",e:41,d:"PAS-334481"}, {n:"Laura Martinez",e:39,d:"PAS-334482"}, {n:"Emilio Jimenez",e:10,d:"PAS-334483"}] },
- "FAM-005": { tipo:"Familiar", pax:[{n:"Lucas Vega",e:12,d:"PAS-119905"}, {n:"Mateo Vega",e:8,d:"PAS-119906"}] },
- "FAM-006": { tipo:"Interior", pax:[{n:"Ricardo Flores",e:28,d:"PAS-556621"}] },
- "FAM-007": { tipo:"Balcón Premium", pax:[{n:"Elena Ramos",e:31,d:"PAS-882211"}, {n:"Pedro Ramos",e:33,d:"PAS-882212"}, {n:"Luis Ramos",e:5,d:"PAS-882213"}] },
- "FAM-008": { tipo:"Suite Junior", pax:[{n:"Marta Sanchez",e:60,d:"PAS-443322"}, {n:"Jorge Sanchez",e:62,d:"PAS-443323"}] },
- "FAM-009": { tipo:"Vista al mar", pax:[{n:"Sofia Castro",e:25,d:"PAS-112233"}, {n:"Diego Castro",e:27,d:"PAS-112234"}] },
- "FAM-010": { tipo:"Familiar", pax:[{n:"Fernando Vega",e:42,d:"PAS-998877"}, {n:"Alejandra Rios",e:40,d:"PAS-998878"}, {n:"Mateo Vega",e:12,d:"PAS-998879"}] }
+ "FAM-001": { tipo:"Balcón Premium", precioBase: 450, pax:[{n:"Ana Perez",e:34,d:"11111111"}, {n:"Leo Perez",e:10,d:"22222222"}] },
+ "FAM-002": { tipo:"Suite Presidencial", precioBase: 1800, pax:[{n:"Carlos Mendoza",e:52,d:"PAS-771203"}, {n:"Patricia Guzman",e:49,d:"PAS-771204"}, {n:"Sofia Mendoza",e:17,d:"PAS-771205"}] },
+ "FAM-003": { tipo:"Vista al mar", precioBase: 380, pax:[{n:"John Doe",e:45,d:"US-998877"}, {n:"Jane Doe",e:43,d:"US-998878"}] },
+ "FAM-004": { tipo:"Interior", precioBase: 250, pax:[{n:"Roberto Jimenez",e:41,d:"PAS-334481"}, {n:"Laura Martinez",e:39,d:"PAS-334482"}, {n:"Emilio Jimenez",e:10,d:"PAS-334483"}] },
+ "FAM-005": { tipo:"Familiar", precioBase: 620, pax:[{n:"Lucas Vega",e:12,d:"PAS-119905"}, {n:"Mateo Vega",e:8,d:"PAS-119906"}] },
+ "FAM-006": { tipo:"Interior", precioBase: 250, pax:[{n:"Ricardo Flores",e:28,d:"PAS-556621"}] },
+ "FAM-007": { tipo:"Balcón Premium", precioBase: 450, pax:[{n:"Elena Ramos",e:31,d:"PAS-882211"}, {n:"Pedro Ramos",e:33,d:"PAS-882212"}, {n:"Luis Ramos",e:5,d:"PAS-882213"}] },
+ "FAM-008": { tipo:"Suite Junior", precioBase: 950, pax:[{n:"Marta Sanchez",e:60,d:"PAS-443322"}, {n:"Jorge Sanchez",e:62,d:"PAS-443323"}] },
+ "FAM-009": { tipo:"Vista al mar", precioBase: 380, pax:[{n:"Sofia Castro",e:25,d:"PAS-112233"}, {n:"Diego Castro",e:27,d:"PAS-112234"}] },
+ "FAM-010": { tipo:"Familiar", precioBase: 620, pax:[{n:"Fernando Vega",e:42,d:"PAS-998877"}, {n:"Alejandra Rios",e:40,d:"PAS-998878"}, {n:"Mateo Vega",e:12,d:"PAS-998879"}] }
 };
 let CABS = [];
 
@@ -313,7 +311,7 @@ async function iniciarCheckin(id) {
     if (data.success) {
       currentCheckInId = data.data.checkInIds[0];
       logMock("ST01", `200 OK · Reserva ${id} validada`, "OK");
-      W = { id, r: RES[id], step: 1, cab: null, mal: {n:1, kg:20}, docsValidos: false };
+      W = { id, r: RES[id], step: 1, cab: null, mal: {n:1, kg:20}, docsValidos: false, upgradeFee: 0 };
       renderWizard();
     } else {
       toast(data.error.message, "err");
@@ -321,16 +319,22 @@ async function iniciarCheckin(id) {
     }
   } catch (e) {
     currentCheckInId = "mock-uuid-" + id;
-    W = { id, r: RES[id], step: 1, cab: null, mal: {n:1, kg:20}, docsValidos: false };
+    W = { id, r: RES[id], step: 1, cab: null, mal: {n:1, kg:20}, docsValidos: false, upgradeFee: 0 };
     renderWizard();
   }
 }
 
-// FIX: Se agregó async a esta función
 async function renderWizard() {
   const r = W.r;
   const steps = ["Docs y Reserva", "Cabina", "Equipaje", "Ticket"];
   
+  const cabinText = W.cab ? `Cabina ${W.cab.num}` : 'Sin asignar';
+  const cabinColor = W.cab ? 'var(--ok)' : 'var(--warn)';
+  
+  let extrasText = '';
+  if (W.upgradeFee > 0) extrasText += `<div style="color:var(--err); font-weight:700;">Upgrade Cabina: +$${W.upgradeFee}.00 USD</div>`;
+  if (extrasText === '') extrasText = '<div style="font-size:14px; color:var(--mut);">Ninguno</div>';
+
   $("#view").innerHTML = `
     <div class="wizard-layout">
       <div>
@@ -352,7 +356,15 @@ async function renderWizard() {
         </div>
         <div style="margin-bottom:16px;">
           <label>Cabina Asignada</label>
-          <div id="summary-cabin" style="font-weight:600; color:var(--warn);">Sin asignar</div>
+          <div id="summary-cabin" style="font-weight:600; color:${cabinColor};">${cabinText}</div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label>Cargos Extra</label>
+          ${extrasText}
+        </div>
+        <div style="border-top:1px solid var(--line); padding-top:10px; margin-top:10px;">
+          <label>Total Estimado</label>
+          <div style="font-size:20px; font-weight:700; color:var(--sea);">$${(r.precioBase + W.upgradeFee).toFixed(2)} USD</div>
         </div>
       </div>
     </div>
@@ -380,21 +392,22 @@ async function renderWizard() {
     logMock("ST06", "GET /cabins (Solicitando disponibilidad)", "INFO");
     fetch('/api/check-in/cabins').then(res => res.json()).then(data => {
       if (data.success) {
-        CABS = data.data.map(c => ({ id: c.id, num: c.cabin_number, deck: c.deck, cap: c.capacity, occ: c.occupied }));
+        CABS = data.data.map(c => ({ id: c.id, num: c.cabin_number, deck: c.deck, cap: c.capacity, occ: c.occupied, precio: c.capacity * 100 }));
         logMock("ST06", "Disponibilidad confirmada", "OK");
         renderCabinas(body, r);
       }
     }).catch(() => {
-      CABS = [{ id: "C1", num: "A-101", deck: 1, cap: 4, occ: 0 }, { id: "C2", num: "B-201", deck: 2, cap: 2, occ: 0 }];
+      CABS = [{ id: "C1", num: "A-101", deck: 1, cap: 4, occ: 0, precio: 400 }, { id: "C2", num: "B-201", deck: 2, cap: 2, occ: 0, precio: 600 }];
       renderCabinas(body, r);
     });
   }
   else if (W.step === 3) {
     body.innerHTML = `
-      <h3>Paso 3: Enviar Información de Equipaje (ST07)</h3>
+      <h3>Paso 3: Información de Equipaje (ST07)</h3>
+      <p class="mut">Registra las piezas y el peso para enviarlo a Embarque.</p>
       <div class="grid mt">
-        <div><label>Piezas</label><input type="number" id="eq-n" value="${W.mal.n}"></div>
-        <div><label>Peso (kg)</label><input type="number" id="eq-kg" value="${W.mal.kg}"></div>
+        <div><label>Piezas Totales</label><input type="number" id="eq-n" value="${W.mal.n}"></div>
+        <div><label>Peso Total (kg)</label><input type="number" id="eq-kg" value="${W.mal.kg}"></div>
       </div>
       <div class="note warn mt" id="error-equipaje-msg" style="display:none;">
         <b>Error reportado por Embarque:</b> Se ha informado a Cabinas sobre el inconveniente con el equipaje.
@@ -440,6 +453,14 @@ async function renderWizard() {
           </div>
         </div>
 
+        <div style="border-top: 1px dashed var(--line); padding-top: 16px; margin-bottom: 16px;">
+          <div class="row sp" style="font-size:14px; margin-bottom:4px;"><span class="mut">Reserva Base:</span> <span>$${r.precioBase}.00</span></div>
+          ${W.upgradeFee > 0 ? `<div class="row sp" style="font-size:14px; margin-bottom:4px; color:var(--err);"><span>Upgrade Cabina:</span> <span>+$${W.upgradeFee}.00</span></div>` : ''}
+          <div class="row sp" style="font-size:18px; font-weight:700; border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px;">
+            <span>Total a Pagar:</span> <span>$${(r.precioBase + W.upgradeFee).toFixed(2)} USD</span>
+          </div>
+        </div>
+
         <div class="ticket-qr" id="ticket-qr-container">
             <div class="spinner" style="border-top-color: var(--sea); width: 30px; height: 30px;"></div>
         </div>
@@ -478,7 +499,18 @@ function renderCabinas(body, r) {
   body.innerHTML = `
     <h3>Paso 2: Asignar Cabina (ST06)</h3>
     <div class="grid mt">
-      ${disps.map(c => `<button class="opt" onclick="seleccionarCabina('${c.id}', '${c.num}', this)"><b>${c.num}</b><br><span class="mut">Piso ${c.deck}</span></button>`).join("")}
+      ${disps.map(c => {
+        const upg = Math.max(0, c.precio - r.precioBase);
+        return `
+        <button class="opt" onclick="seleccionarCabina('${c.id}', '${c.num}', ${upg}, this)">
+          <div>
+            <b>${c.num}</b><br>
+            <span class="mut">Piso ${c.deck}</span>
+          </div>
+          ${upg > 0 ? `<span class="tag err">+ $${upg} USD</span>` : `<span class="tag ok">Incluida</span>`}
+        </button>
+        `;
+      }).join("")}
     </div>
     <div class="note ok mt" id="tarjeta-msg" style="display:none;">
       <b>Tarjeta de cabina (RFID) entregada al pasajero.</b>
@@ -490,16 +522,11 @@ function renderCabinas(body, r) {
   `;
 }
 
-async function seleccionarCabina(id, num, btn) {
+async function seleccionarCabina(id, num, upgradeFee, btn) {
   document.querySelectorAll('.opt').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
   W.cab = CABS.find(c => c.id === id);
-  
-  const summaryCab = document.getElementById("summary-cabin");
-  if (summaryCab) {
-    summaryCab.textContent = `Cabina ${num}`;
-    summaryCab.style.color = "var(--ok)";
-  }
+  W.upgradeFee = upgradeFee;
 
   logMock("ST06", `POST /cabin (${num})`, "INFO");
   try {
@@ -512,11 +539,14 @@ async function seleccionarCabina(id, num, btn) {
       document.getElementById('btn-next-cab').disabled = false;
       document.getElementById('tarjeta-msg').style.display = 'block';
       logMock("ST06", `Cabina ${num} asignada`, "OK");
+      renderWizard();
+      toast(`Cabina ${num} asignada`, "ok");
     }
   } catch (e) {
     document.getElementById('btn-next-cab').disabled = false;
     document.getElementById('tarjeta-msg').style.display = 'block';
     logMock("ST06", `Cabina ${num} (Mock)`, "OK");
+    renderWizard();
   }
 }
 
@@ -533,7 +563,7 @@ async function enviarEquipaje() {
   } catch (e) { console.log("Luggage no implementado o falló"); }
 
   setTimeout(() => {
-    logMock("ST07", "Embarque confirma recibo", "OK");
+    logMock("ST07", "Embarque confirma recibo del equipaje", "OK");
     W.step = 4;
     renderWizard();
   }, 600);
@@ -627,7 +657,7 @@ function resolverExcepcion(index, autorizar) {
   if (autorizar) {
     logMock("ST04", `Gerente AUTORIZA excepción de ${exc.id}`, "OK");
     toast("Excepción autorizada. El recepcionista puede continuar.");
-    W = { id: exc.id, r: RES[exc.id], step: 2, cab: null, mal: {n:1, kg:20}, docsValidos: true };
+    W = { id: exc.id, r: RES[exc.id], step: 2, cab: null, mal: {n:1, kg:20}, docsValidos: true, upgradeFee: 0 };
   } else {
     logMock("ST04", `Gerente RECHAZA excepción de ${exc.id}`, "ERROR");
     toast("Excepción rechazada. Check-in cancelado.", "err");
