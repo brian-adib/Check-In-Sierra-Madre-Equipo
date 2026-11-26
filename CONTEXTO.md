@@ -11,3 +11,7 @@
 ## Actualización de Pruebas Automatizadas (`tests/integration.test.js`)
 - Se actualizó `vi.stubGlobal('fetch')` en `tests/integration.test.js` para eliminar referencias a `/api/mock/...` y adaptar el stub al formato `response.text()` de `fetchExternalService`.
 - **Estado:** Listo para despliegue en Render y conexión en vivo mediante variables de entorno (`RESERVATIONS_URL`, `BANK_URL`, `CABIN_AVAILABILITY_URL`, `CABIN_CHECKOUT_URL`).
+
+## Corrección de Ruta `/pay` y URL de Pase de Abordar (QR)
+- **`src/services/checkin.service.js`:** Se corrigió la URL generada en `generateQR` para apuntar correctamente a `${baseUrl}/api/check-in/boarding-pass/${checkInId}` (usando `process.env.PUBLIC_URL` o `https://onrender.com`).
+- **`src/routes/checkin.route.js`:** Se conectó el endpoint `POST /api/check-in/pay` al controlador `pay` existente.

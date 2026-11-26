@@ -155,7 +155,8 @@ export const generateQR = async (checkInId) => {
   
   if (checkIn.qr_payload) return { qrBase64: checkIn.qr_payload };
   
-  const payload = `https://onrender.com{checkInId}`;
+  const baseUrl = process.env.PUBLIC_URL || 'https://onrender.com';
+  const payload = `${baseUrl}/api/check-in/boarding-pass/${checkInId}`;
   
   const qrBase64 = await QRCode.toDataURL(payload);
   await db.execute({ sql: 'UPDATE check_ins SET qr_payload = ? WHERE id = ?', args: [qrBase64, checkInId] });
