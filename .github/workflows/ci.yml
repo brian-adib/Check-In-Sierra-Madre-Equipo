@@ -1,42 +1,84 @@
-name: Node.js CI (Lint & Test)
-
-on:
-  push:
-    branches: [ "main", "Prototipo", "feature/*" ]
-  pull_request:
-    branches: [ "main", "Prototipo" ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout del código
-      uses: actions/checkout@v4
-
-    - name: Configurar Node.js 20
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-
-    - name: Instalar dependencias
-      run: npm ci
-
-    - name: Crear archivo .env
-      run: |
-        echo "PORT=3000" >> .env
-        echo "NODE_ENV=test" >> .env
-        echo "DATABASE_URL=file:local.db" >> .env
-
-    - name: Ejecutar Migraciones
-      run: npm run migrate
-
-    - name: Ejecutar Seeders
-      run: npm run seed
-
-    - name: Correr Linter (ESLint)
-      run: npm run lint
-
-    - name: Correr Pruebas (Vitest)
-      run: npm run test
+PS C:\Users\DELL\Desktop\Check-In-Sierra-Madre-Equipo> code .github/workflows/ci.yml CONTEXTO.md
+>> 
+PS C:\Users\DELL\Desktop\Check-In-Sierra-Madre-Equipo> name: Node.js CI (Lint & Test)
+>> 
+>> on:
+>>   push:
+>>     branches: [ "main", "Prototipo", "feature/*" ]
+>>   pull_request:
+>>     branches: [ "main", "Prototipo" ]
+>> 
+>> jobs:
+>>   build:
+>>     runs-on: ubuntu-latest
+>> 
+>>     steps:
+>>     - name: Checkout del código
+>>       uses: actions/checkout@v4
+>> 
+>>     - name: Configurar Node.js 20
+>>       uses: actions/setup-node@v4
+>>       with:
+>>         node-version: '20'
+>>         cache: 'npm'
+>> 
+>>     - name: Instalar dependencias
+>>       run: npm ci
+>> 
+>>     - name: Crear archivo .env de pruebas
+>>       run: |
+>>         echo "PORT=3000" >> .env
+>>         echo "NODE_ENV=test" >> .env
+>>         echo "DATABASE_URL=postgresql://test:test@localhost:5432/testdb" >> .env
+>> 
+>>     - name: Correr Linter (ESLint)
+>>       run: npm run lint
+>> 
+>>     - name: Correr Pruebas (Vitest)
+>>       run: npm run test
+>> 
+En línea: 1 Carácter: 24
++ name: Node.js CI (Lint & Test)
++                        ~
+No se permite usar el carácter de Y comercial (&). El operador & está reservado para un uso futuro; encierre un símbolo 
+de Y comercial entre comillas dobles ("&") para pasarlo como parte de una cadena.
+En línea: 14 Carácter: 6
++     - name: Checkout del código
++      ~
+Falta una expresión después del operador unario '-'.
+En línea: 14 Carácter: 7
++     - name: Checkout del código
++       ~~~~~
+Token 'name:' inesperado en la expresión o la instrucción.
+En línea: 17 Carácter: 6
++     - name: Configurar Node.js 20
++      ~
+Falta una expresión después del operador unario '-'.
+En línea: 17 Carácter: 7
++     - name: Configurar Node.js 20
++       ~~~~~
+Token 'name:' inesperado en la expresión o la instrucción.
+En línea: 23 Carácter: 6
++     - name: Instalar dependencias
++      ~
+Falta una expresión después del operador unario '-'.
+En línea: 23 Carácter: 7
++     - name: Instalar dependencias
++       ~~~~~
+Token 'name:' inesperado en la expresión o la instrucción.
+En línea: 26 Carácter: 6
++     - name: Crear archivo .env de pruebas
++      ~
+Falta una expresión después del operador unario '-'.
+En línea: 26 Carácter: 7
++     - name: Crear archivo .env de pruebas
++       ~~~~~
+Token 'name:' inesperado en la expresión o la instrucción.
+En línea: 32 Carácter: 6
++     - name: Correr Linter (ESLint)
++      ~
+Falta una expresión después del operador unario '-'.
+No se notificaron todos los errores de análisis. Corrija los errores notificados e inténtelo de nuevo.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : AmpersandNotAllowed
+ 

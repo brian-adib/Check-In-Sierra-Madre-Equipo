@@ -30,3 +30,7 @@
 - **`tests/integration.test.js`:** Se añadieron stubs de `pool.query` y `pool.connect` para ejecutar pruebas automatizadas sin requerir una base de datos PostgreSQL levantada.
 - **Siguiente paso:** Crear la instancia de PostgreSQL (en Render o Neon) y configurar `DATABASE_URL` en el panel Environment de Render.
 
+## Actualización de CI/CD en GitHub Actions (`.github/workflows/ci.yml`)
+- Se eliminaron los pasos `npm run migrate` y `npm run seed` del pipeline de CI (ya que las migraciones reales corren al arrancar el contenedor en Render contra PostgreSQL).
+- Se actualizó `DATABASE_URL` en el `.env` temporal del CI al formato `postgresql://...` para cumplir con la validación de Zod en `env.js`.
+
