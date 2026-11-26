@@ -1,8 +1,14 @@
-import { createClient } from '@libsql/client';
+import pg from 'pg';
 import { env } from '../config/env.js';
 
-// Create the database client (Local file or Turso cloud URL)
-export const db = createClient({
-  url: env.DATABASE_URL,
-  authToken: env.DATABASE_AUTH_TOKEN,
+const { Pool } = pg;
+
+const isProduction = env.NODE_ENV === 'production' || !env.DATABASE_URL.includes('localhost');
+
+export const pool = new Pool({
+  connectionString: env.DATABASE_URL,
+  ssl: isProduction ? { rejectUnauthorized: false } : false,
 });
+
+// Helper compatible para ejecutar consultas SQL en PostgreSQL
+export const query = (text, params) => pool.query(text, params);
