@@ -2,8 +2,8 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Sierra Madre Check-In API",
-    "version": "1.1.0",
-    "description": "Microservicio de Check-in para el crucero Sierra Madre Resort & Casino. Incluye integración con Mocks para Banco, Cabinas y Reservaciones."
+    "version": "1.2.0",
+    "description": "Microservicio de Check-in y Check-out para el crucero Sierra Madre Resort & Casino. Integrado mediante variables de entorno con Reservaciones, Banco y Cabinas."
   },
   "servers": [
     {
@@ -11,7 +11,7 @@
       "description": "Servidor Local"
     },
     {
-      "url": "https://sierra-madre-checkin.onrender.com",
+      "url": "https://onrender.com",
       "description": "Servidor de Producción (Render)"
     }
   ],
@@ -19,7 +19,7 @@
     "/api/check-in/initiate": {
       "post": {
         "summary": "Iniciar Check-in (ST01)",
-        "description": "Valida que la reservación exista y registra a los pasajeros.",
+        "description": "Valida que la reservación exista, verifica regla de adultos/menores y registra a los pasajeros.",
         "requestBody": {
           "required": true,
           "content": {
@@ -59,10 +59,42 @@
         }
       }
     },
+    "/api/check-in/pay": {
+      "post": {
+        "summary": "Procesar Pago de Check-in (ST04)",
+        "description": "Envía el cargo al microservicio de Banco y registra el pago.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "checkInId": { "type": "string", "format": "uuid" },
+                  "amount": { "type": "number", "example": 150 },
+                  "documentNumber": { "type": "string", "example": "11111111" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Pago procesado exitosamente" },
+          "402": { "description": "Pago rechazado por Banco" }
+        }
+      }
+    },
+    "/api/check-in/cabins": {
+      "get": {
+        "summary": "Listar Cabinas",
+        "description": "Devuelve el catálogo de cabinas y su ocupación actual.",
+        "responses": { "200": { "description": "Lista de cabinas" } }
+      }
+    },
     "/api/check-in/cabin": {
       "post": {
         "summary": "Asignar Cabina (ST06)",
-        "description": "Consulta disponibilidad al Mock de Cabinas y asigna la cabina.",
+        "description": "Consulta disponibilidad al microservicio de Cabinas y asigna la cabina al pasajero.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -82,7 +114,7 @@
     "/api/check-in/luggage": {
       "post": {
         "summary": "Registrar Equipaje (ST07)",
-        "description": "Valida el límite de equipaje y lo envía a Embarque.",
+        "description": "Valida el límite de equipaje según estatus VIP.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -91,7 +123,7 @@
                 "properties": {
                   "checkInId": { "type": "string", "format": "uuid" },
                   "bagCount": { "type": "number", "example": 2 },
-                  "totalWeightKg": { "type": "number", "example": 25 },
+                  "totalWeightKg": { "type": "number", "example": 20 },
                   "isVip": { "type": "boolean", "example": false }
                 }
               }
@@ -107,7 +139,7 @@
     "/api/check-in/checkout": {
       "post": {
         "summary": "Procesar Check-out (ST08-ST12)",
-        "description": "Consulta daños, genera cargos y procesa el cobro final.",
+        "description": "Consulta daños al microservicio de Cabinas y procesa cobro final con Banco si aplica.",
         "requestBody": {
           "content": {
             "application/json": {
@@ -124,10 +156,20 @@
         "responses": { "200": { "description": "Check-out y cobro exitoso" } }
       }
     },
+    "/api/check-in/boarding-pass/{id}": {
+      "get": {
+        "summary": "Ver Pase de Abordar",
+        "description": "Muestra la vista HTML del pase de abordar del pasajero.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "HTML del pase de abordar" } }
+      }
+    },
     "/api/check-in/{id}/qr": {
       "get": {
         "summary": "Obtener Pase QR (SU02)",
-        "description": "Genera el código QR en Base64 para el pase de abordar.",
+        "description": "Genera el código QR en Base64 que apunta al pase de abordar.",
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
