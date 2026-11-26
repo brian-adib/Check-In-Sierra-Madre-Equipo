@@ -7,14 +7,15 @@
   },
   "servers": [
     {
-      "url": "http://localhost:3000",
-      "description": "Servidor Local"
-    },
-    {
       "url": "https://sierra-madre-checkin.onrender.com",
       "description": "Servidor de Producción (Render)"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Servidor Local"
     }
   ],
+
   "paths": {
     "/api/check-in/reservations": {
       "post": {
