@@ -2,3 +2,12 @@
 - **Rutas eliminadas:** Se eliminó `src/routes/mock.route.js` y se removió `/api/mock` de `src/app.js` (el respaldo con mocks quedó congelado en `brian-adib/Check-In-Sierra-Madre`).
 - **Servicios actualizados (`src/services/checkin.service.js`):** Se reemplazaron las URLs locales por `process.env.RESERVATIONS_URL`, `BANK_URL`, `CABIN_AVAILABILITY_URL` y `CABIN_CHECKOUT_URL` con helper `fetchExternalService` (logs `[OUTBOUND REQUEST]` / `[INBOUND RESPONSE]`).
 - **Pendiente:** Revisar `src/config/env.js` y `public/index.html` para limpiar cualquier referencia a `/api/mock`.
+
+## Actualización de Configuración (`src/config/env.js`)
+- Se agregaron al esquema de validación Zod en `src/config/env.js` las variables `RESERVATIONS_URL`, `BANK_URL`, `CABIN_AVAILABILITY_URL` y `CABIN_CHECKOUT_URL` con URLs por defecto para evitar que el servidor falle si falta alguna en producción.
+- **Siguiente paso:** Revisar el código fuente de `public/index.html` y la carpeta `tests/` para asegurar que ninguna prueba o botón llame a `/api/mock`.
+
+
+## Actualización de Pruebas Automatizadas (`tests/integration.test.js`)
+- Se actualizó `vi.stubGlobal('fetch')` en `tests/integration.test.js` para eliminar referencias a `/api/mock/...` y adaptar el stub al formato `response.text()` de `fetchExternalService`.
+- **Estado:** Listo para despliegue en Render y conexión en vivo mediante variables de entorno (`RESERVATIONS_URL`, `BANK_URL`, `CABIN_AVAILABILITY_URL`, `CABIN_CHECKOUT_URL`).

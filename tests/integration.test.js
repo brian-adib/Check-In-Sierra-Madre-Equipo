@@ -7,27 +7,37 @@ describe('Flujo E2E de Check-in API (PR11)', () => {
   let checkInId;
 
   beforeAll(async () => {
-    // 1. Mockeamos global.fetch para simular las respuestas de los otros microservicios
+    // 1. Simulamos las respuestas HTTP reales de los microservicios externos para el entorno de test
     vi.stubGlobal('fetch', vi.fn((url) => {
-      // Mock de Reservaciones (Nuevo ST05)
-      if (url.includes('/api/mock/reservations/confirm')) {
+      // Simulación de Reservaciones (ST05)
+      if (url.includes('/reservations/confirm')) {
         return Promise.resolve({
-          json: () => Promise.resolve({ success: true, message: 'Check-in confirmado por Reservaciones' })
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify({ success: true, message: 'Check-in confirmado por Reservaciones' }))
         });
       }
-      // Mock de Cabinas
-      if (url.includes('/api/mock/cabin/availability/')) {
+      // Simulación de Cabinas
+      if (url.includes('/cabins/availability/')) {
         return Promise.resolve({
-          json: () => Promise.resolve({ success: true, available: true })
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify({ success: true, available: true }))
         });
       }
-      // Mock de Banco
-      if (url.includes('/api/mock/bank/charge')) {
+      // Simulación de Banco
+      if (url.includes('/bank/charge')) {
         return Promise.resolve({
-          json: () => Promise.resolve({ success: true, transactionId: 'TEST-123' })
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify({ success: true, transactionId: 'TEST-123' }))
         });
       }
-      return Promise.resolve({ json: () => Promise.resolve({}) });
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify({}))
+      });
     }));
 
     // Limpiamos la base de datos de test
