@@ -24,3 +24,9 @@
 - **`Dockerfile`:** Se eliminó `npm run seed` del comando de arranque (`CMD`) para evitar la carga de datos ficticios (`FAM-001` a `FAM-010`) en producción.
 - **`render.yaml`:** Se reemplazó `DATABASE_URL: "file:local.db"` por `sync: false` junto con las URLs de los microservicios externos para gestionar la conexión real a PostgreSQL desde el panel de Render.
 - **Siguiente paso:** Revisar `package.json` y migrar la capa de base de datos (`src/db/client.js`, `src/db/migrate.js` y consultas en `checkin.service.js`) de `@libsql/client` (SQLite) a `pg` (PostgreSQL).
+
+## Migración Completa de Lógica a PostgreSQL (`checkin.service.js` y `tests/`)
+- **`src/services/checkin.service.js`:** Todas las consultas SQL y transacciones (`BEGIN`, `COMMIT`, `ROLLBACK`) fueron migradas a `pg` (`pool.query` con parámetros `$1, $2...`). Se agregó `ON CONFLICT (id) DO UPDATE` en `assignCabin` para registrar cabinas reales conforme lleguen del microservicio de Cabinas sin depender de datos pre-cargados.
+- **`tests/integration.test.js`:** Se añadieron stubs de `pool.query` y `pool.connect` para ejecutar pruebas automatizadas sin requerir una base de datos PostgreSQL levantada.
+- **Siguiente paso:** Crear la instancia de PostgreSQL (en Render o Neon) y configurar `DATABASE_URL` en el panel Environment de Render.
+
