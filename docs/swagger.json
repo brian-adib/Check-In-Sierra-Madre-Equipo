@@ -2,8 +2,8 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Sierra Madre Check-In API",
-    "version": "1.2.0",
-    "description": "Microservicio de Check-in y Check-out para el crucero Sierra Madre Resort & Casino. Integrado mediante variables de entorno con Reservaciones, Banco y Cabinas."
+    "version": "1.3.0",
+    "description": "Microservicio de Check-in y Check-out (Equipo 11) respaldado por PostgreSQL (16 tablas oficiales PR11) con Adaptador Tolerante (ACL) para integración con Reservaciones, Cabinas, Banco y Embarque."
   },
   "servers": [
     {
@@ -16,10 +16,50 @@
     }
   ],
   "paths": {
+    "/api/check-in/reservations": {
+      "post": {
+        "summary": "Recibir Reservación Externa (Adaptador Tolerante ACL)",
+        "description": "Endpoint receptor para que el microservicio de Reservaciones envíe pasajeros individuales o familias completas. Acepta campos adicionales sin rechazar la petición.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["clave_reserva"],
+                "properties": {
+                  "clave_reserva": { "type": "string", "example": "RSV-FAM-01" },
+                  "cabina": { "type": "string", "example": "C-104" },
+                  "fecha_embarque": { "type": "string", "format": "date", "example": "2026-12-01" },
+                  "fecha_desembarque": { "type": "string", "format": "date", "example": "2026-12-08" },
+                  "pasajeros": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "nombre": { "type": "string", "example": "Carlos Ruiz" },
+                        "fecha_nacimiento": { "type": "string", "format": "date", "example": "1988-04-12" },
+                        "telefono": { "type": "string", "example": "6621234567" },
+                        "correo": { "type": "string", "example": "carlos@correo.com" },
+                        "nacionalidad": { "type": "string", "example": "Mexicana" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Reservación y pasajeros registrados en PostgreSQL" },
+          "400": { "description": "Falta identificador de reservación" }
+        }
+      }
+    },
     "/api/check-in/initiate": {
       "post": {
         "summary": "Iniciar Check-in (ST01)",
-        "description": "Valida que la reservación exista, verifica regla de adultos/menores y registra a los pasajeros.",
+        "description": "Valida que la reservación exista en PostgreSQL, verifica regla de adultos/menores y abre Registro_checkin y cuenta.",
         "requestBody": {
           "required": true,
           "content": {
@@ -27,13 +67,17 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "groupCode": { "type": "string", "example": "FAM-001" }
+                  "groupCode": { "type": "string", "example": "RSV-FAM-01" }
                 }
               }
             }
           }
         },
-        "responses": { "201": { "description": "Check-in iniciado exitosamente" } }
+        "responses": {
+          "201": { "description": "Check-in iniciado exitosamente" },
+          "404": { "description": "Reservación no encontrada" },
+          "422": { "description": "Menores sin adulto acompañante" }
+        }
       }
     },
     "/api/check-in/confirm-reservation": {
@@ -47,7 +91,7 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "checkInId": { "type": "string", "format": "uuid" }
+                  "checkInId": { "type": "integer", "example": 1 }
                 }
               }
             }
@@ -62,7 +106,7 @@
     "/api/check-in/pay": {
       "post": {
         "summary": "Procesar Pago de Check-in (ST04)",
-        "description": "Envía el cargo al microservicio de Banco y registra el pago.",
+        "description": "Envía el cargo al microservicio de Banco y registra en cargo, cobro, deposito y comprobante.",
         "requestBody": {
           "required": true,
           "content": {
@@ -70,16 +114,16 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "checkInId": { "type": "string", "format": "uuid" },
+                  "checkInId": { "type": "integer", "example": 1 },
                   "amount": { "type": "number", "example": 150 },
-                  "documentNumber": { "type": "string", "example": "11111111" }
+                  "documentNumber": { "type": "string", "example": "4532015112830366" }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Pago procesado exitosamente" },
+          "200": { "description": "Pago procesado y comprobante emitido" },
           "402": { "description": "Pago rechazado por Banco" }
         }
       }
@@ -87,43 +131,48 @@
     "/api/check-in/cabins": {
       "get": {
         "summary": "Listar Cabinas",
-        "description": "Devuelve el catálogo de cabinas y su ocupación actual.",
+        "description": "Devuelve las cabinas registradas en la tabla Cabina.",
         "responses": { "200": { "description": "Lista de cabinas" } }
       }
     },
     "/api/check-in/cabin": {
       "post": {
         "summary": "Asignar Cabina (ST06)",
-        "description": "Consulta disponibilidad al microservicio de Cabinas y asigna la cabina al pasajero.",
+        "description": "Consulta disponibilidad al microservicio de Cabinas, registra en Solicitud_cabina y actualiza Registro_checkin.",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "checkInId": { "type": "string", "format": "uuid" },
-                  "cabinId": { "type": "string", "format": "uuid" }
+                  "checkInId": { "type": "integer", "example": 1 },
+                  "cabinId": { "type": "string", "example": "C-104" }
                 }
               }
             }
           }
         },
-        "responses": { "200": { "description": "Cabina asignada" } }
+        "responses": {
+          "200": { "description": "Cabina asignada" },
+          "409": { "description": "Cabina no disponible" }
+        }
       }
     },
     "/api/check-in/luggage": {
       "post": {
         "summary": "Registrar Equipaje (ST07)",
-        "description": "Valida el límite de equipaje según estatus VIP.",
+        "description": "Valida el límite de equipaje según estatus VIP y guarda en Envio_equipaje y Pieza_equipaje.",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "checkInId": { "type": "string", "format": "uuid" },
-                  "bagCount": { "type": "number", "example": 2 },
-                  "totalWeightKg": { "type": "number", "example": 20 },
+                  "checkInId": { "type": "integer", "example": 1 },
+                  "bagCount": { "type": "integer", "example": 1 },
+                  "totalWeightKg": { "type": "number", "example": 18 },
                   "isVip": { "type": "boolean", "example": false }
                 }
               }
@@ -139,21 +188,22 @@
     "/api/check-in/checkout": {
       "post": {
         "summary": "Procesar Check-out (ST08-ST12)",
-        "description": "Consulta daños al microservicio de Cabinas y procesa cobro final con Banco si aplica.",
+        "description": "Consulta daños al microservicio de Cabinas (reporte_estado), cobra cargos extra con Banco y cierra cuenta.",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "checkInId": { "type": "string", "format": "uuid" },
-                  "documentNumber": { "type": "string", "example": "11111111" }
+                  "checkInId": { "type": "integer", "example": 1 },
+                  "documentNumber": { "type": "string", "example": "4532015112830366" }
                 }
               }
             }
           }
         },
-        "responses": { "200": { "description": "Check-out y cobro exitoso" } }
+        "responses": { "200": { "description": "Check-out completado y cuenta cerrada" } }
       }
     },
     "/api/check-in/boarding-pass/{id}": {
@@ -161,7 +211,7 @@
         "summary": "Ver Pase de Abordar",
         "description": "Muestra la vista HTML del pase de abordar del pasajero.",
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "example": 1 } }
         ],
         "responses": { "200": { "description": "HTML del pase de abordar" } }
       }
@@ -171,7 +221,7 @@
         "summary": "Obtener Pase QR (SU02)",
         "description": "Genera el código QR en Base64 que apunta al pase de abordar.",
         "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "example": 1 } }
         ],
         "responses": { "200": { "description": "QR generado en Base64" } }
       }
@@ -187,7 +237,7 @@
             "type": "object",
             "properties": {
               "code": { "type": "string", "example": "ERR_AGE_REQUIREMENT" },
-              "message": { "type": "string", "example": "Minors require an adult." }
+              "message": { "type": "string", "example": "Minors require at least one adult." }
             }
           }
         }

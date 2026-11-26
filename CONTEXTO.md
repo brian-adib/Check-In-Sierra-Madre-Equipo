@@ -120,3 +120,8 @@ Implementado exactamente según el Modelo Relacional y Diccionario de Datos ofic
 - **Esquema PostgreSQL (`src/db/migrate.js`):** Se agregaron columnas `payload_externo JSONB` en `Reservacion`, `Cabina`, `reporte_estado` y `deposito` para conservar el JSON crudo recibido de otros equipos sin perder compatibilidad con las 16 tablas del modelo relacional.
 - **Endpoint Receptor (`POST /api/check-in/reservations`):** Implementado con Lector Tolerante (Zod `.passthrough()`) capaz de recibir pasajeros individuales o familias completas (`pasajeros` / `passengers`) con variantes de campos en español o inglés y registrarlos automáticamente en `Cabina`, `Pasajero` y `Reservacion`.
 - **Servicios y Pruebas (`checkin.service.js`, `tests/integration.test.js`):** Todo el flujo de Check-in, Equipaje, Pagos, QR y Check-out opera ahora directamente sobre las 16 tablas oficiales (`Registro_checkin`, `Solicitud_cabina`, `Envio_equipaje`, `Pieza_equipaje`, `reporte_estado`, `cuenta`, `cargo`, `cobro`, `deposito`, `comprobante`).
+
+
+## Documentación Swagger Actualizada (`docs/swagger.json` v1.3.0)
+- Se documentó el endpoint receptor `POST /api/check-in/reservations` con esquema de ejemplo para familias completas (`pasajeros`) y campos tolerantes.
+- Se actualizaron los tipos y ejemplos de `checkInId` a enteros (`SERIAL`) en `/confirm-reservation`, `/pay`, `/cabin`, `/luggage`, `/checkout`, `/boarding-pass/{id}` y `/{id}/qr`.
