@@ -34,3 +34,6 @@
 - Se eliminaron los pasos `npm run migrate` y `npm run seed` del pipeline de CI (ya que las migraciones reales corren al arrancar el contenedor en Render contra PostgreSQL).
 - Se actualizó `DATABASE_URL` en el `.env` temporal del CI al formato `postgresql://...` para cumplir con la validación de Zod en `env.js`.
 
+## Limpieza de Frontend (`public/index.html`)
+- Se eliminaron las reservaciones ficticias (`FAM-001` a `FAM-010`) y las cabinas simuladas en `catch()`.
+- Se conectó el dashboard al flujo real de Check-in (`POST /api/check-in/initiate`, `/confirm-reservation`, `/cabin`, `/luggage`, `/{id}/qr`) y al endpoint real de Check-out (`POST /api/check-in/checkout`).

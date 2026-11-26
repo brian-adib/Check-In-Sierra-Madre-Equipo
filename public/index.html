@@ -101,7 +101,7 @@ header.page-header { display: flex; justify-content: space-between; align-items:
 .ticket-qr { display: flex; justify-content: center; align-items: center; padding: 20px 0; border-top: 2px dashed var(--line); border-bottom: 2px dashed var(--line); margin-bottom: 20px; min-height: 190px; }
 .ticket-footer { text-align: center; font-size: 12px; color: var(--mut); }
 
-/* ================= MOCK PANEL ================= */
+/* ================= LOG PANEL ================= */
 .mock-panel { position: fixed; bottom: 75px; right: 20px; width: 380px; max-height: 400px; background: #051510; color: #fff; border-radius: 10px; padding: 16px; font-family: 'Courier New', monospace; font-size: 11px; overflow-y: auto; z-index: 9999; border: 1px solid var(--brass); display: none; }
 .mock-panel.active { display: block; }
 .toggle-mock { position: fixed; bottom: 20px; right: 20px; background: #051510; color: var(--brass); border-radius: 50px; padding: 10px 18px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; z-index: 9998; border: 1px solid var(--brass); }
@@ -122,11 +122,9 @@ header.page-header { display: flex; justify-content: space-between; align-items:
 .opt[aria-pressed=true] { border-color: var(--brass); background: var(--brassbg); }
 .opt:disabled { opacity: .45; cursor: not-allowed; }
 
-/* Spinner animación */
 .spinner { border: 3px solid var(--line); border-top-color: var(--sea); border-radius: 50%; width: 30px; height: 30px; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ================= PRINT ================= */
 @media print {
   body * { visibility: hidden; }
   .ticket-container, .ticket-container * { visibility: visible; }
@@ -139,42 +137,36 @@ header.page-header { display: flex; justify-content: space-between; align-items:
 </head>
 <body>
 
-<!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="sidebar-brand">
     <h1>Sierra Madre</h1>
     <p>Resort & Casino</p>
   </div>
-  
   <div class="role-switch">
     <button class="role-btn active" id="btn-rol-recepcion" onclick="cambiarRol('recepcion')">Recepción</button>
     <button class="role-btn" id="btn-rol-gerente" onclick="cambiarRol('gerente')">Gerente</button>
   </div>
-
   <nav class="sidebar-nav" id="sidebar-nav"></nav>
-
   <div class="sidebar-foot">
     <button class="btn sm" style="background:rgba(255,255,255,0.1); color:#fff;" onclick="document.body.classList.toggle('dark')">Tema</button>
   </div>
 </aside>
 
-<!-- MAIN CONTENT -->
 <main class="main-content">
   <header class="page-header">
     <div>
       <h2 id="page-title">Recepción</h2>
-      <p class="mut" id="page-subtitle">Gestiona el check-in de pasajeros.</p>
+      <p class="mut" id="page-subtitle">Gestiona el check-in y check-out de pasajeros.</p>
     </div>
     <div class="header-stats">
-      <div class="stat-pill"><span style="color:var(--ok)">●</span> Turno Matutino</div>
-      <div class="stat-pill">Agente: Admin</div>
+      <div class="stat-pill"><span style="color:var(--ok)">●</span> Servicio Activo</div>
+      <div class="stat-pill">Equipo 11</div>
       <div class="clock" id="clock">--:--:--</div>
     </div>
   </header>
   <div id="view"></div>
 </main>
 
-<!-- UTILIDADES -->
 <div id="toast"></div>
 <div class="toggle-mock" onclick="document.getElementById('mock-panel').classList.toggle('active')">Tráfico microservicios</div>
 <div class="mock-panel" id="mock-panel">
@@ -192,26 +184,11 @@ let vistaActual = 'inicio';
 let W = null; 
 let S = { excepciones: [] };
 let currentCheckInId = null; 
-let checkoutW = null;
-
-/* 10 Reservaciones de Prueba */
-const RES = {
- "FAM-001": { tipo:"Balcón Premium", precioBase: 450, pax:[{n:"Ana Perez",e:34,d:"11111111"}, {n:"Leo Perez",e:10,d:"22222222"}] },
- "FAM-002": { tipo:"Suite Presidencial", precioBase: 1800, pax:[{n:"Carlos Mendoza",e:52,d:"PAS-771203"}, {n:"Patricia Guzman",e:49,d:"PAS-771204"}, {n:"Sofia Mendoza",e:17,d:"PAS-771205"}] },
- "FAM-003": { tipo:"Vista al mar", precioBase: 380, pax:[{n:"John Doe",e:45,d:"US-998877"}, {n:"Jane Doe",e:43,d:"US-998878"}] },
- "FAM-004": { tipo:"Interior", precioBase: 250, pax:[{n:"Roberto Jimenez",e:41,d:"PAS-334481"}, {n:"Laura Martinez",e:39,d:"PAS-334482"}, {n:"Emilio Jimenez",e:10,d:"PAS-334483"}] },
- "FAM-005": { tipo:"Familiar", precioBase: 620, pax:[{n:"Lucas Vega",e:12,d:"PAS-119905"}, {n:"Mateo Vega",e:8,d:"PAS-119906"}] },
- "FAM-006": { tipo:"Interior", precioBase: 250, pax:[{n:"Ricardo Flores",e:28,d:"PAS-556621"}] },
- "FAM-007": { tipo:"Balcón Premium", precioBase: 450, pax:[{n:"Elena Ramos",e:31,d:"PAS-882211"}, {n:"Pedro Ramos",e:33,d:"PAS-882212"}, {n:"Luis Ramos",e:5,d:"PAS-882213"}] },
- "FAM-008": { tipo:"Suite Junior", precioBase: 950, pax:[{n:"Marta Sanchez",e:60,d:"PAS-443322"}, {n:"Jorge Sanchez",e:62,d:"PAS-443323"}] },
- "FAM-009": { tipo:"Vista al mar", precioBase: 380, pax:[{n:"Sofia Castro",e:25,d:"PAS-112233"}, {n:"Diego Castro",e:27,d:"PAS-112234"}] },
- "FAM-010": { tipo:"Familiar", precioBase: 620, pax:[{n:"Fernando Vega",e:42,d:"PAS-998877"}, {n:"Alejandra Rios",e:40,d:"PAS-998878"}, {n:"Mateo Vega",e:12,d:"PAS-998879"}] }
-};
 let CABS = [];
 
 /* Utils */
 const $ = s => document.querySelector(s);
-const logMock = (serv, msg, type="INFO") => {
+const logTrace = (serv, msg, type="INFO") => {
   const log = $("#mock-log");
   const time = new Date().toLocaleTimeString();
   const cl = type === "ERROR" ? "err" : (type === "WARN" ? "warn" : (type.includes("OK") ? "ok" : ""));
@@ -223,7 +200,7 @@ const toast = (m, type="ok") => {
   if(type==="err") d.className="err";
   else if(type==="warn") d.className="warn";
   $("#toast").append(d);
-  setTimeout(()=>d.remove(), 3000);
+  setTimeout(()=>d.remove(), 3500);
 };
 
 /* ================= NAVEGACIÓN ================= */
@@ -258,129 +235,69 @@ function irVista(v) {
 function renderInicio() {
   $("#view").innerHTML = `
     <div class="stats-grid">
-      <div class="stat-card">
-        <h4>Check-ins Pendientes</h4>
-        <div class="value" id="stat-pendientes">${Object.keys(RES).length}</div>
-      </div>
       <div class="stat-card ok">
-        <h4>Cabinas Disponibles</h4>
+        <h4>Cabinas Registradas</h4>
         <div class="value" id="stat-cabinas">--</div>
       </div>
       <div class="stat-card warn">
-        <h4>Pagos Pendientes</h4>
-        <div class="value">1</div>
+        <h4>Excepciones Pendientes</h4>
+        <div class="value">${S.excepciones.length}</div>
       </div>
     </div>
 
-    <div class="row sp mt">
-      <h3>Reservaciones en el Sistema (ST01)</h3>
-      <div style="position:relative; width:300px;">
-        <input type="text" id="search-input" oninput="filtrarReservaciones()" placeholder="Buscar por nombre o código..." style="padding-left:36px; border-radius:20px;">
-        <svg style="position:absolute; left:12px; top:12px; color:var(--mut);" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+    <div class="card mt" style="max-width: 600px;">
+      <h3>Iniciar Check-in por Código de Reservación (ST01)</h3>
+      <p class="mut mt">Ingresa la clave de reservación proporcionada por el equipo de Reservaciones.</p>
+      <div class="row mt" style="flex-wrap: nowrap;">
+        <input type="text" id="group-code-input" placeholder="Ej. RSV-2026-001" style="font-family:'JetBrains Mono', monospace; text-transform: uppercase;">
+        <button class="btn" onclick="buscarEIniciarCheckin()">Buscar e Iniciar</button>
       </div>
     </div>
-    
-    <div class="grid mt" id="reservaciones-container"></div>
   `;
   
-  // Carga inicial de cabinas para el contador (background)
-  if (CABS.length === 0) {
-    fetch('/api/check-in/cabins').then(r => r.json()).then(data => {
-      if (data.success) {
-        CABS = data.data.map(c => ({ id: c.id, num: c.cabin_number, deck: c.deck, cap: c.capacity, occ: c.occupied, precio: c.capacity * 100 }));
-      }
-    }).catch(() => {
-      CABS = [{ id: "C1", num: "A-101", deck: 1, cap: 4, occ: 0, precio: 400 }, { id: "C2", num: "B-201", deck: 2, cap: 2, occ: 0, precio: 600 }];
-    }).finally(() => {
+  fetch('/api/check-in/cabins').then(r => r.json()).then(data => {
+    if (data.success && Array.isArray(data.data)) {
+      CABS = data.data.map(c => ({ id: c.id, num: c.cabin_number, deck: c.deck, cap: c.capacity, occ: c.occupied, precio: c.capacity * 100 }));
       const el = document.getElementById('stat-cabinas');
       if (el) el.textContent = CABS.filter(c => (c.cap - c.occ) > 0).length;
-    });
-  } else {
+    }
+  }).catch(() => {
     const el = document.getElementById('stat-cabinas');
-    if (el) el.textContent = CABS.filter(c => (c.cap - c.occ) > 0).length;
-  }
-
-  filtrarReservaciones();
-}
-
-function filtrarReservaciones() {
-  const q = document.getElementById('search-input').value.toLowerCase().trim();
-  const container = document.getElementById('reservaciones-container');
-  const countDisplay = document.getElementById('stat-pendientes');
-  
-  const filtradas = Object.keys(RES).filter(id => {
-    if (!q) return true;
-    const r = RES[id];
-    return id.toLowerCase().includes(q) || 
-           r.tipo.toLowerCase().includes(q) || 
-           r.pax.some(p => p.n.toLowerCase().includes(q));
+    if (el) el.textContent = "0";
   });
-
-  if (countDisplay) countDisplay.textContent = filtradas.length;
-
-  if (filtradas.length === 0) {
-    container.innerHTML = `<div class="note" style="grid-column: 1/-1; text-align:center; color:var(--mut);">No se encontraron reservaciones con ese criterio.</div>`;
-    return;
-  }
-
-  container.innerHTML = filtradas.map(id => {
-    const r = RES[id];
-    const isMinorOnly = r.pax.every(p => p.e < 18);
-    const hasMinor = r.pax.some(p => p.e < 18);
-    
-    return `
-      <button class="opt" onclick="iniciarCheckin('${id}')">
-        <div>
-          <div class="row sp" style="width:200px;">
-            <b>${id}</b>
-            ${isMinorOnly ? '<span class="tag err">Menores Solos</span>' : ''}
-          </div>
-          <span class="mut" style="margin-top:8px; display:block;">${r.tipo} · ${r.pax.length} pax</span>
-          <div style="margin-top:12px; font-size:12px; color:var(--mut);">
-            ${hasMinor ? 'Incluye menores' : 'Solo adultos'}
-          </div>
-        </div>
-        <div class="tag vip">Iniciar &rarr;</div>
-      </button>
-    `;
-  }).join("");
 }
 
-async function iniciarCheckin(id) {
-  logMock("ST01", `POST /initiate (${id})`, "INFO");
+async function buscarEIniciarCheckin() {
+  const code = document.getElementById('group-code-input').value.trim().toUpperCase();
+  if (!code) return toast("Ingresa un código de reservación", "warn");
+
+  logTrace("ST01", `POST /api/check-in/initiate (${code})`, "INFO");
   try {
     const res = await fetch('/api/check-in/initiate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ groupCode: id })
+      body: JSON.stringify({ groupCode: code })
     });
     const data = await res.json();
     
     if (data.success) {
       currentCheckInId = data.data.checkInIds[0];
-      logMock("ST01", `200 OK · Reserva ${id} validada`, "OK");
-      W = { id, r: RES[id], step: 1, cab: null, mal: {n:1, kg:20}, docsValidos: false, upgradeFee: 0 };
+      logTrace("ST01", `201 Created · Reserva ${code} iniciada (${data.data.checkInIds.length} pax)`, "OK");
+      W = { id: code, checkInIds: data.data.checkInIds, step: 1, cab: null, mal: {n:1, kg:20}, docsValidos: false, cabinInputId: '' };
       renderWizard();
     } else {
-      toast(data.error.message, "err");
-      logMock("ST01", data.error.message, "ERROR");
+      toast(data.error?.message || "Reservación no encontrada", "err");
+      logTrace("ST01", data.error?.message || "Error al iniciar", "ERROR");
     }
   } catch (e) {
-    currentCheckInId = "mock-uuid-" + id;
-    W = { id, r: RES[id], step: 1, cab: null, mal: {n:1, kg:20}, docsValidos: false, upgradeFee: 0 };
-    renderWizard();
+    toast("Error de conexión con el servidor", "err");
+    logTrace("ST01", "Error de red al consultar /initiate", "ERROR");
   }
 }
 
 async function renderWizard() {
-  const r = W.r;
-  const steps = ["Docs y Reserva", "Cabina", "Equipaje", "Ticket"];
-  
-  const cabinText = W.cab ? `Cabina ${W.cab.num}` : 'Sin asignar';
+  const steps = ["Validación Reserva", "Asignar Cabina", "Equipaje", "Pase de Abordar"];
+  const cabinText = W.cab ? `Cabina ${W.cab.num || W.cab.id}` : 'Sin asignar';
   const cabinColor = W.cab ? 'var(--ok)' : 'var(--warn)';
-  
-  let extrasText = '';
-  if (W.upgradeFee > 0) extrasText += `<div style="color:var(--err); font-weight:700;">Upgrade Cabina: +$${W.upgradeFee}.00 USD</div>`;
-  if (extrasText === '') extrasText = '<div style="font-size:14px; color:var(--mut);">Ninguno</div>';
 
   $("#view").innerHTML = `
     <div class="wizard-layout">
@@ -392,26 +309,18 @@ async function renderWizard() {
       </div>
       
       <div class="summary-panel">
-        <h4 style="color:var(--sea); margin-bottom:12px;">Resumen del Pasajero</h4>
+        <h4 style="color:var(--sea); margin-bottom:12px;">Resumen del Proceso</h4>
         <div style="margin-bottom:16px;">
-          <label>Reservación</label>
+          <label>Código de Reservación</label>
           <div style="font-family:'JetBrains Mono', monospace; font-weight:600; font-size:18px;">${W.id}</div>
         </div>
         <div style="margin-bottom:16px;">
-          <label>Grupo</label>
-          <div>${r.pax.map(p=>p.n).join(", ")}</div>
+          <label>Check-in ID Activo</label>
+          <div style="font-family:'JetBrains Mono', monospace; font-size:12px; word-break:break-all;">${currentCheckInId}</div>
         </div>
         <div style="margin-bottom:16px;">
           <label>Cabina Asignada</label>
           <div id="summary-cabin" style="font-weight:600; color:${cabinColor};">${cabinText}</div>
-        </div>
-        <div style="margin-bottom:16px;">
-          <label>Cargos Extra</label>
-          ${extrasText}
-        </div>
-        <div style="border-top:1px solid var(--line); padding-top:10px; margin-top:10px;">
-          <label>Total Estimado</label>
-          <div style="font-size:20px; font-weight:700; color:var(--sea);">$${(r.precioBase + W.upgradeFee).toFixed(2)} USD</div>
         </div>
       </div>
     </div>
@@ -420,14 +329,10 @@ async function renderWizard() {
 
   if (W.step === 1) {
     body.innerHTML = `
-      <h3>Paso 1: Verificar Documentos y Reserva (ST02/ST05)</h3>
-      <p class="mut mt">Revisa los documentos y confirma la reserva con el equipo de Reservaciones.</p>
-      <table class="mt">
-        <tr><th>Nombre</th><th>Edad</th><th>Documento</th></tr>
-        ${r.pax.map(p => `<tr><td>${p.n}</td><td>${p.e}</td><td>${p.d}</td></tr>`).join("")}
-      </table>
+      <h3>Paso 1: Confirmar con Microservicio de Reservaciones (ST05)</h3>
+      <p class="mut mt">Envía la solicitud de validación al equipo de Reservaciones para obtener visto bueno.</p>
       <div class="row mt sp">
-        <button class="btn ghost sm" onclick="documentoInvalido()">Documento Inválido (ST03)</button>
+        <button class="btn ghost sm" onclick="documentoInvalido()">Reportar Documento Inválido (ST03)</button>
         <div class="row">
           <button class="btn ghost" onclick="irVista('inicio')">Cancelar</button>
           <button class="btn" onclick="enviarAReservaciones()">Enviar a Reservaciones (ST05)</button>
@@ -436,46 +341,36 @@ async function renderWizard() {
     `;
   }
   else if (W.step === 2) {
-    if (CABS.length > 0) {
-      renderCabinas(body, r);
-    } else {
-      logMock("ST06", "GET /cabins (Solicitando disponibilidad)", "INFO");
-      fetch('/api/check-in/cabins').then(res => res.json()).then(data => {
-        if (data.success) {
-          CABS = data.data.map(c => ({ id: c.id, num: c.cabin_number, deck: c.deck, cap: c.capacity, occ: c.occupied, precio: c.capacity * 100 }));
-          logMock("ST06", "Disponibilidad confirmada", "OK");
-          renderCabinas(body, r);
-        }
-      }).catch(() => {
-        CABS = [
-          { id: "C1", num: "A-101", deck: 1, cap: 4, occ: 0, precio: 400 },
-          { id: "C2", num: "A-102", deck: 1, cap: 4, occ: 2, precio: 400 },
-          { id: "C3", num: "B-201", deck: 2, cap: 2, occ: 0, precio: 600 },
-          { id: "C4", num: "B-202", deck: 2, cap: 2, occ: 1, precio: 600 },
-          { id: "C5", num: "C-301", deck: 3, cap: 3, occ: 0, precio: 700 }
-        ];
-        logMock("ST06", "Cabinas mock cargadas", "WARN");
-        renderCabinas(body, r);
-      });
-    }
+    body.innerHTML = `
+      <h3>Paso 2: Consultar y Asignar Cabina (ST06)</h3>
+      <p class="mut mt">Ingresa el ID de cabina proporcionado por el equipo de Cabinas para verificar disponibilidad y asignarla.</p>
+      <div class="mt" style="max-width: 400px;">
+        <label>ID de Cabina (Microservicio Cabinas)</label>
+        <input type="text" id="cabin-id-input" placeholder="Ej. CAB-101" value="${W.cabinInputId || ''}" style="font-family:'JetBrains Mono', monospace;">
+      </div>
+      <div class="note ok mt" id="tarjeta-msg" style="display:${W.cab ? 'block' : 'none'};">
+        <b>Cabina confirmada por el microservicio externo y asignada.</b>
+      </div>
+      <div class="row mt sp">
+        <button class="btn ghost" onclick="W.step=1; renderWizard()">Atrás</button>
+        <div class="row">
+          <button class="btn" onclick="asignarCabinaReal()">Verificar y Asignar Cabina</button>
+          <button class="btn" id="btn-next-cab" ${W.cab ? '' : 'disabled'} onclick="W.step=3; renderWizard()">Siguiente: Equipaje</button>
+        </div>
+      </div>
+    `;
   }
   else if (W.step === 3) {
     body.innerHTML = `
-      <h3>Paso 3: Información de Equipaje (ST07)</h3>
-      <p class="mut">Registra las piezas y el peso para enviarlo a Embarque.</p>
+      <h3>Paso 3: Registro de Equipaje (ST07)</h3>
+      <p class="mut">Registra las piezas y el peso total del pasajero.</p>
       <div class="grid mt">
-        <div><label>Piezas Totales</label><input type="number" id="eq-n" value="${W.mal.n}"></div>
-        <div><label>Peso Total (kg)</label><input type="number" id="eq-kg" value="${W.mal.kg}"></div>
-      </div>
-      <div class="note warn mt" id="error-equipaje-msg" style="display:none;">
-        <b>Error reportado por Embarque:</b> Se ha informado a Cabinas sobre el inconveniente con el equipaje.
+        <div><label>Piezas Totales</label><input type="number" id="eq-n" value="${W.mal.n}" min="0"></div>
+        <div><label>Peso Total (kg)</label><input type="number" id="eq-kg" value="${W.mal.kg}" min="0"></div>
       </div>
       <div class="row mt sp">
-        <button class="btn warn sm" onclick="simularErrorEquipaje()">Simular Error de Equipaje</button>
-        <div class="row">
-          <button class="btn ghost" onclick="W.step=2; renderWizard()">Atrás</button>
-          <button class="btn" onclick="enviarEquipaje()">Generar Ticket Final</button>
-        </div>
+        <button class="btn ghost" onclick="W.step=2; renderWizard()">Atrás</button>
+        <button class="btn" onclick="enviarEquipaje()">Registrar Equipaje y Generar Pase</button>
       </div>
     `;
   }
@@ -483,15 +378,13 @@ async function renderWizard() {
     body.innerHTML = `
       <div style="text-align:center; margin-bottom: 20px;">
         <h3 style="color:var(--ok);">Check-in Completado</h3>
-        <p class="mut">Imprime y entrega este ticket al pasajero.</p>
+        <p class="mut">Pase de abordar generado desde el backend.</p>
       </div>
-
       <div class="ticket-container">
         <div class="ticket-header">
           <h2>Sierra Madre</h2>
           <p>Boarding Pass / Ticket de Embarque</p>
         </div>
-        
         <div class="ticket-grid">
           <div class="ticket-item">
             <label>Reservación</label>
@@ -499,11 +392,11 @@ async function renderWizard() {
           </div>
           <div class="ticket-item">
             <label>Cabina</label>
-            <div>${W.cab ? W.cab.num : 'N/A'}</div>
+            <div>${W.cab ? W.cab.id : 'N/A'}</div>
           </div>
           <div class="ticket-item">
             <label>Pasajeros</label>
-            <div>${r.pax.length} pers.</div>
+            <div>${W.checkInIds.length} pers.</div>
           </div>
           <div class="ticket-item">
             <label>Equipaje</label>
@@ -511,21 +404,13 @@ async function renderWizard() {
           </div>
         </div>
 
-        <div style="border-top: 1px dashed var(--line); padding-top: 16px; margin-bottom: 16px;">
-          <div class="row sp" style="font-size:14px; margin-bottom:4px;"><span class="mut">Reserva Base:</span> <span>$${r.precioBase}.00</span></div>
-          ${W.upgradeFee > 0 ? `<div class="row sp" style="font-size:14px; margin-bottom:4px; color:var(--err);"><span>Upgrade Cabina:</span> <span>+$${W.upgradeFee}.00</span></div>` : ''}
-          <div class="row sp" style="font-size:18px; font-weight:700; border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px;">
-            <span>Total a Pagar:</span> <span>$${(r.precioBase + W.upgradeFee).toFixed(2)} USD</span>
-          </div>
-        </div>
-
         <div class="ticket-qr" id="ticket-qr-container">
-            <div class="spinner"></div>
+          <div class="spinner"></div>
         </div>
 
         <div class="ticket-footer">
           <p>Escanear en el punto de embarque</p>
-          <p style="margin-top:4px; font-size:10px;">ID: ${currentCheckInId || 'MOCK'}</p>
+          <p style="margin-top:4px; font-size:10px;">Check-In ID: ${currentCheckInId}</p>
         </div>
       </div>
 
@@ -534,133 +419,81 @@ async function renderWizard() {
         <button class="btn ghost" onclick="irVista('inicio')">Volver al Dashboard</button>
       </div>
     `;
-    logMock("SU02", "Exportando pase de abordar / Ticket", "OK");
+    logTrace("SU02", `GET /api/check-in/${currentCheckInId}/qr`, "INFO");
 
     try {
       const res = await fetch(`/api/check-in/${currentCheckInId}/qr`);
       const data = await res.json();
       if (data.success) {
+        logTrace("SU02", "200 OK · Código QR generado", "OK");
         document.getElementById('ticket-qr-container').innerHTML = `
           <img src="${data.data.qrBase64}" style="width:150px; height:150px; object-fit: contain;" alt="QR" />
         `;
-      } else { throw new Error(); }
+      } else {
+        throw new Error(data.error?.message || "Error al generar QR");
+      }
     } catch (err) {
+      logTrace("SU02", err.message, "ERROR");
       document.getElementById('ticket-qr-container').innerHTML = `
-        <p class="mut" style="font-size: 12px;">(QR no disponible en modo demo)</p>
+        <p class="mut" style="font-size: 12px; color: var(--err);">${err.message}</p>
       `;
     }
   }
 }
 
-function renderCabinas(body, r) {
-  const disps = CABS.filter(c => (c.cap - c.occ) >= r.pax.length);
-  const yaTieneCabina = !!W.cab;
-  const cabinaSelId = W.cab ? W.cab.id : null;
+async function asignarCabinaReal() {
+  const cabinId = document.getElementById('cabin-id-input').value.trim();
+  if (!cabinId) return toast("Ingresa un ID de cabina", "warn");
+  W.cabinInputId = cabinId;
 
-  body.innerHTML = `
-    <h3>Paso 2: Asignar Cabina (ST06)</h3>
-    <p class="mut mt">Capacidad requerida: <b>${r.pax.length}</b> pax.</p>
-    <div class="grid mt">
-      ${disps.length === 0
-        ? '<div class="note err">No hay cabinas con capacidad suficiente.</div>'
-        : disps.map(c => {
-            const upg = Math.max(0, c.precio - r.precioBase);
-            const libres = c.cap - c.occ;
-            const selected = c.id === cabinaSelId ? 'true' : 'false';
-            return `
-              <button class="opt" aria-pressed="${selected}" onclick="seleccionarCabina('${c.id}', '${c.num}', ${upg}, this)">
-                <div>
-                  <b>${c.num}</b><br>
-                  <span class="mut">Piso ${c.deck} · ${libres}/${c.cap} libres</span>
-                </div>
-                ${upg > 0 ? `<span class="tag err">+ $${upg} USD</span>` : `<span class="tag ok">Incluida</span>`}
-              </button>
-            `;
-          }).join("")}
-    </div>
-    <div class="note ok mt" id="tarjeta-msg" style="display:${yaTieneCabina ? 'block' : 'none'};">
-      <b>Tarjeta de cabina (RFID) entregada al pasajero.</b>
-    </div>
-    <div class="row mt sp">
-      <button class="btn ghost" onclick="W.step=1; renderWizard()">Atrás</button>
-      <button class="btn" id="btn-next-cab" ${yaTieneCabina ? '' : 'disabled'} onclick="W.step=3; renderWizard()">Confirmar y Entregar Tarjeta</button>
-    </div>
-  `;
-}
-
-async function seleccionarCabina(id, num, upgradeFee, btn) {
-  document.querySelectorAll('#wizard-body .opt').forEach(b => b.setAttribute('aria-pressed', 'false'));
-  btn.setAttribute('aria-pressed', 'true');
-
-  W.cab = CABS.find(c => c.id === id) || { id, num };
-  W.upgradeFee = upgradeFee;
-
-  // Actualiza el panel lateral sin recargar la vista
-  const sumCabin = document.getElementById('summary-cabin');
-  if (sumCabin) {
-    sumCabin.textContent = `Cabina ${W.cab.num}`;
-    sumCabin.style.color = 'var(--ok)';
-  }
-  const sumPanel = document.querySelector('.summary-panel');
-  if (sumPanel) {
-    const extras = sumPanel.querySelectorAll('div')[4]; 
-    if (extras) {
-      extras.innerHTML = W.upgradeFee > 0
-        ? `<label>Cargos Extra</label><div style="color:var(--err); font-weight:700;">Upgrade: +$${W.upgradeFee}.00 USD</div>`
-        : `<label>Cargos Extra</label><div style="font-size:14px; color:var(--mut);">Ninguno</div>`;
-    }
-  }
-
-  logMock("ST06", `POST /cabin (${num})`, "INFO");
+  logTrace("ST06", `POST /api/check-in/cabin (cabinId: ${cabinId})`, "INFO");
   try {
     const res = await fetch('/api/check-in/cabin', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ checkInId: currentCheckInId, cabinId: W.cab.id })
+      body: JSON.stringify({ checkInId: currentCheckInId, cabinId })
     });
     const data = await res.json();
     if (data.success) {
-      confirmarCabinaAsignada(num);
+      W.cab = { id: cabinId };
+      const sumCabin = document.getElementById('summary-cabin');
+      if (sumCabin) { sumCabin.textContent = `Cabina ${cabinId}`; sumCabin.style.color = 'var(--ok)'; }
+      document.getElementById('btn-next-cab').disabled = false;
+      document.getElementById('tarjeta-msg').style.display = 'block';
+      logTrace("ST06", `200 OK · Cabina ${cabinId} asignada`, "OK");
+      toast(`Cabina ${cabinId} asignada`, "ok");
     } else {
-      toast(data.error?.message || 'No se pudo asignar', "err");
+      logTrace("ST06", data.error?.message || "Cabina no disponible", "ERROR");
+      toast(data.error?.message || 'No se pudo asignar cabina', "err");
     }
   } catch (e) {
-    confirmarCabinaAsignada(num + ' (demo)');
+    logTrace("ST06", "Error de red al asignar cabina", "ERROR");
+    toast("Error de conexión con el servidor", "err");
   }
-}
-
-function confirmarCabinaAsignada(numLabel) {
-  const btnNext = document.getElementById('btn-next-cab');
-  const msg = document.getElementById('tarjeta-msg');
-  if (btnNext) btnNext.disabled = false;
-  if (msg) msg.style.display = 'block';
-  logMock("ST06", `Cabina ${numLabel} asignada`, "OK");
-  toast(`Cabina ${numLabel} asignada`, "ok");
 }
 
 async function enviarEquipaje() {
   W.mal.n = +$("#eq-n").value;
   W.mal.kg = +$("#eq-kg").value;
   
-  logMock("ST07", "POST /luggage", "INFO");
+  logTrace("ST07", "POST /api/check-in/luggage", "INFO");
   try {
-    await fetch('/api/check-in/luggage', {
+    const res = await fetch('/api/check-in/luggage', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ checkInId: currentCheckInId, bagCount: W.mal.n, totalWeightKg: W.mal.kg })
+      body: JSON.stringify({ checkInId: currentCheckInId, bagCount: W.mal.n, totalWeightKg: W.mal.kg, isVip: false })
     });
-  } catch (e) { console.log("Luggage no implementado o falló"); }
-
-  setTimeout(() => {
-    logMock("ST07", "Embarque confirma recibo del equipaje", "OK");
-    W.step = 4;
-    renderWizard();
-  }, 600);
-}
-
-function simularErrorEquipaje() {
-  logMock("ST07", "Error con el equipaje reportado por Embarque", "WARN");
-  logMock("ST07", "Informando a Cabinas sobre el error del equipaje", "WARN");
-  document.getElementById('error-equipaje-msg').style.display = 'block';
-  toast("Error de equipaje informado a Cabinas", "warn");
+    const data = await res.json();
+    if (data.success) {
+      logTrace("ST07", "200 OK · Equipaje registrado", "OK");
+      W.step = 4;
+      renderWizard();
+    } else {
+      logTrace("ST07", data.error?.message || "Límite excedido", "WARN");
+      toast(data.error?.message || "Error al registrar equipaje", "err");
+    }
+  } catch (e) {
+    logTrace("ST07", "Error de red al registrar equipaje", "ERROR");
+    toast("Error de conexión con el servidor", "err");
+  }
 }
 
 async function enviarAReservaciones() {
@@ -669,7 +502,7 @@ async function enviarAReservaciones() {
   btn.disabled = true;
   btn.textContent = "Enviando...";
   
-  logMock("ST05", "POST /confirm-reservation", "INFO");
+  logTrace("ST05", "POST /api/check-in/confirm-reservation", "INFO");
 
   try {
     const res = await fetch('/api/check-in/confirm-reservation', {
@@ -679,33 +512,25 @@ async function enviarAReservaciones() {
     const data = await res.json();
 
     if (data.success) {
-      logMock("ST05", "200 OK · Reservaciones confirmó", "OK");
-      toast("Reservaciones ha validado al pasajero. Continuando...");
-      
-      setTimeout(() => {
-        logMock("ST05", "Exportando registro FR011...", "INFO");
-        toast("Registro FR011 exportado exitosamente");
-        W.step = 2; 
-        renderWizard();
-      }, 800);
-      
+      logTrace("ST05", "200 OK · Reservaciones confirmó el Check-in", "OK");
+      toast("Reservaciones ha validado al pasajero.", "ok");
+      W.step = 2; 
+      renderWizard();
     } else {
-      logMock("ST05", data.error.message, "ERROR");
-      toast("Error: " + data.error.message, "err");
+      logTrace("ST05", data.error?.message || "Rechazado por Reservaciones", "ERROR");
+      toast("Error: " + (data.error?.message || "Rechazado"), "err");
       btn.disabled = false; btn.textContent = originalText;
     }
   } catch (e) {
-    logMock("ST05", "Conexión fallida, continuando en modo Demo", "ERR");
-    toast("Error de red, pero continuamos en modo Demo.", "warn");
-    W.step = 2;
-    renderWizard();
+    logTrace("ST05", "Error de red al contactar Reservaciones", "ERROR");
+    toast("Error de conexión con el servidor", "err");
+    btn.disabled = false; btn.textContent = originalText;
   }
 }
 
 function documentoInvalido() {
-  logMock("ST03", "Informando al pasajero - Documento inválido", "INFO");
-  W.docsValidos = false;
-  S.excepciones.push({ id: W.id, motivo: "Documento ilegible" });
+  logTrace("ST03", `Excepción enviada al Gerente (${W.id})`, "WARN");
+  S.excepciones.push({ id: W.id, checkInIds: W.checkInIds, motivo: "Documento inválido / requiere autorización" });
   toast("Solicitud enviada al Gerente. Cambia de rol para aprobarla.", "warn");
   irVista('inicio');
 }
@@ -721,7 +546,7 @@ function renderGerente() {
     </div>
     <div class="card mt">
       <h3>Bandeja de Excepciones (ST04)</h3>
-      <p class="mut mt">Solicitudes de autorización para check-ins con documentos inválidos.</p>
+      <p class="mut mt">Solicitudes de autorización para check-ins con documentos observados.</p>
       <div class="grid mt">
         ${S.excepciones.length === 0 ? '<div class="note">No hay solicitudes pendientes.</div>' : ''}
         ${S.excepciones.map((e, i) => `
@@ -742,12 +567,12 @@ function renderGerente() {
 function resolverExcepcion(index, autorizar) {
   const exc = S.excepciones[index];
   if (autorizar) {
-    logMock("ST04", `Gerente AUTORIZA excepción de ${exc.id}`, "OK");
-    toast("Excepción autorizada. El recepcionista puede continuar.");
-    currentCheckInId = currentCheckInId || ("mock-uuid-" + exc.id);
-    W = { id: exc.id, r: RES[exc.id], step: 2, cab: null, mal: {n:1, kg:20}, docsValidos: true, upgradeFee: 0 };
+    logTrace("ST04", `Gerente AUTORIZA excepción de ${exc.id}`, "OK");
+    toast("Excepción autorizada. Continuando proceso.");
+    currentCheckInId = exc.checkInIds[0];
+    W = { id: exc.id, checkInIds: exc.checkInIds, step: 2, cab: null, mal: {n:1, kg:20}, docsValidos: true, cabinInputId: '' };
   } else {
-    logMock("ST04", `Gerente RECHAZA excepción de ${exc.id}`, "ERROR");
+    logTrace("ST04", `Gerente RECHAZA excepción de ${exc.id}`, "ERROR");
     toast("Excepción rechazada. Check-in cancelado.", "err");
     W = null;
   }
@@ -757,119 +582,57 @@ function resolverExcepcion(index, autorizar) {
   if (W) { renderWizard(); } else { renderInicio(); }
 }
 
-/* ================= FLUJO CHECK-OUT ================= */
+/* ================= FLUJO CHECK-OUT REAL ================= */
 function renderCheckout() {
-  checkoutW = { step: 1, id: null, hasDamage: false };
-  renderCheckoutStep();
+  $("#view").innerHTML = `
+    <div class="card" style="max-width:600px; margin:0 auto;">
+      <h3>Procesar Check-out (ST08 - ST12)</h3>
+      <p class="mut mt">Consulta el reporte de daños con el microservicio de Cabinas y procesa cobros extra con Banco si existen.</p>
+      <div class="mt">
+        <label>Check-In ID (UUID)</label>
+        <input type="text" id="co-checkin-id" placeholder="Ej. 33333333-3333-3333-3333-333333333333" style="font-family:'JetBrains Mono', monospace;">
+        <label class="mt">Documento del Pasajero (para Banco)</label>
+        <input type="text" id="co-doc" placeholder="Ej. PAS-771203">
+        <button class="btn danger mt" style="width:100%;" onclick="ejecutarCheckoutReal()">Ejecutar Check-out y Liquidar Cuenta</button>
+      </div>
+      <div id="checkout-result" class="mt"></div>
+    </div>
+  `;
 }
 
-function renderCheckoutStep() {
-  const body = $("#view");
-  
-  if (checkoutW.step === 1) {
-    body.innerHTML = `
-      <div class="card" style="max-width:600px; margin:0 auto;">
-        <h3>Paso 1: Solicitar Reporte (ST08)</h3>
-        <p class="mut mt">Ingresa la reserva para consultar daños con el departamento de Cabinas.</p>
-        <div class="mt">
-          <input type="text" id="co-id" placeholder="Ej. FAM-001" style="font-family:monospace;">
-          <button class="btn danger mt" onclick="solicitarReporte()">Consultar Daños</button>
-        </div>
-      </div>
-    `;
-  }
-  else if (checkoutW.step === 2) {
-    body.innerHTML = `
-      <div class="card" style="max-width:600px; margin:0 auto;">
-        <h3>Paso 2: Rellenar datos del pasajero (ST09)</h3>
-        <div class="note">Se ha recibido el reporte de estado de la cabina.</div>
-        <div class="mt">
-          <label>Nombre del Pasajero</label>
-          <input type="text" id="co-nombre" value="Ana Perez" readonly>
-          <label class="mt">Documento</label>
-          <input type="text" id="co-doc" value="11111111">
-        </div>
-        <button class="btn mt" style="width:100%;" onclick="generarCargo()">Siguiente: Generar Cargo (ST10)</button>
-      </div>
-    `;
-  }
-  else if (checkoutW.step === 3) {
-    body.innerHTML = `
-      <div class="card" style="max-width:600px; margin:0 auto;">
-        <h3>Paso 3: Generar Cargo e Informar (ST10)</h3>
-        <div class="note warn">
-          <b>¿Hay daños? SÍ.</b><br>
-          Se ha agregado un cargo de $50.00 por consumos en el minibar.
-        </div>
-        <div class="mt">
-          <label>Monto del cargo</label>
-          <input type="text" value="$50.00 USD" readonly>
-        </div>
-        <button class="btn mt" style="width:100%;" onclick="cobrarBanco()">Informar a Cabinas y Atención al Cliente</button>
-      </div>
-    `;
-  }
-  else if (checkoutW.step === 4) {
-    body.innerHTML = `
-      <div class="card" style="max-width:600px; margin:0 auto; text-align:center;">
-        <h3>Paso 4: Realizar Cobro al Pasajero (ST11)</h3>
-        <p class="mut mt">Notificaciones enviadas a Cabinas y Atención al Cliente.</p>
-        <p class="mut">Conectando con el Banco para procesar el cobro...</p>
-        <div class="mt">
-           <button class="btn" onclick="finalizarCheckout()">Confirmar Pago y Enviar al Banco</button>
-        </div>
-      </div>
-    `;
-  }
-  else if (checkoutW.step === 5) {
-    body.innerHTML = `
-      <div class="card" style="max-width:600px; margin:0 auto; text-align:center;">
-        <h3 style="color:var(--ok);">Paso 5: Cerrar Cuenta y Entregar Comprobante (ST12)</h3>
-        <p class="mut mt">El cobro fue confirmado por el Banco.</p>
-        <div class="note ok mt">
-          Comprobante emitido exitosamente. El Check-out ha finalizado.
-        </div>
-        <div class="mt">
-          <button class="btn" onclick="renderCheckout()">Nuevo Check-out</button>
-        </div>
-      </div>
-    `;
-    logMock("ST12", "Cuenta cerrada y comprobante entregado", "OK");
-  }
-}
+async function ejecutarCheckoutReal() {
+  const checkInId = $("#co-checkin-id").value.trim();
+  const documentNumber = $("#co-doc").value.trim();
+  const resDiv = $("#checkout-result");
 
-function solicitarReporte() {
-  const id = $("#co-id").value.trim().toUpperCase();
-  if (!id) return toast("Ingresa una reserva", "err");
-  checkoutW.id = id;
-  logMock("ST08", `Solicitando reporte a Cabinas (${id})`, "INFO");
-  setTimeout(() => {
-    logMock("ST09", "Reporte recibido. Daños detectados.", "OK");
-    checkoutW.step = 2;
-    renderCheckoutStep();
-  }, 800);
-}
+  if (!checkInId || !documentNumber) {
+    return toast("Ingresa el Check-In ID y el documento del pasajero", "warn");
+  }
 
-function generarCargo() {
-  logMock("ST10", "Generando cargo por $50.00", "OK");
-  checkoutW.step = 3;
-  renderCheckoutStep();
-}
+  logTrace("ST08-ST12", `POST /api/check-in/checkout (${checkInId})`, "INFO");
+  resDiv.innerHTML = `<div class="note">Consultando Cabinas y procesando liquidación con Banco...</div>`;
 
-function cobrarBanco() {
-  logMock("ST10", "Informando a Cabinas", "OK");
-  logMock("ST10", "Informando a Atención al Cliente", "OK");
-  checkoutW.step = 4;
-  renderCheckoutStep();
-}
+  try {
+    const res = await fetch('/api/check-in/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checkInId, documentNumber })
+    });
+    const data = await res.json();
 
-function finalizarCheckout() {
-  logMock("ST11", "POST /charge (Banco)", "INFO");
-  setTimeout(() => {
-    logMock("ST11", "Resultado del depósito: ÉXITO", "OK");
-    checkoutW.step = 5;
-    renderCheckoutStep();
-  }, 1000);
+    if (data.success) {
+      logTrace("ST12", `200 OK · ${data.data.message}`, "OK");
+      toast("Check-out completado", "ok");
+      resDiv.innerHTML = `<div class="note ok"><b>Check-out Exitoso:</b> ${data.data.message}</div>`;
+    } else {
+      logTrace("ST11", data.error?.message || "Error en Check-out", "ERROR");
+      toast(data.error?.message || "No se pudo completar el Check-out", "err");
+      resDiv.innerHTML = `<div class="note err"><b>Error:</b> ${data.error?.message || "Fallo en el proceso"}</div>`;
+    }
+  } catch (e) {
+    logTrace("ST11", "Error de red al procesar Check-out", "ERROR");
+    resDiv.innerHTML = `<div class="note err">Error de conexión con el servidor.</div>`;
+  }
 }
 
 /* ================= INIT ================= */
