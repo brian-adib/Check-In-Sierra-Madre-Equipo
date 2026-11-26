@@ -125,3 +125,9 @@ Implementado exactamente según el Modelo Relacional y Diccionario de Datos ofic
 ## Documentación Swagger Actualizada (`docs/swagger.json` v1.3.0)
 - Se documentó el endpoint receptor `POST /api/check-in/reservations` con esquema de ejemplo para familias completas (`pasajeros`) y campos tolerantes.
 - Se actualizaron los tipos y ejemplos de `checkInId` a enteros (`SERIAL`) en `/confirm-reservation`, `/pay`, `/cabin`, `/luggage`, `/checkout`, `/boarding-pass/{id}` y `/{id}/qr`.
+
+## Base de Datos en la Nube (Neon) y Despliegue en Vivo (Render)
+- **Base de Datos PostgreSQL en Neon (`cruceroE11-db`):** Conectada mediante `DATABASE_URL` en el panel **Environment** de Render. Al iniciar el contenedor, `npm run migrate` creó exitosamente las **16 tablas oficiales PR11** con soporte de columnas tolerantes `payload_externo JSONB`.
+- **Despliegue en Render:** Servicio activo y en línea en `https://onrender.com` (`Deploy succeeded | Live`).
+- **Documentación Swagger (`docs/swagger.json` v1.3.0):** Actualizado con el endpoint receptor `POST /api/check-in/reservations` (Adaptador Tolerante ACL), ejemplos con IDs enteros reales y configurado con `https://onrender.com` como servidor principal por defecto.
+- **Pruebas Automatizadas:** Suite completa de `8/8` tests pasando en verde (`tests/health.test.js` y `tests/integration.test.js`).
