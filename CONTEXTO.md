@@ -131,3 +131,70 @@ Implementado exactamente según el Modelo Relacional y Diccionario de Datos ofic
 - **Despliegue en Render:** Servicio activo y en línea en `https://onrender.com` (`Deploy succeeded | Live`).
 - **Documentación Swagger (`docs/swagger.json` v1.3.0):** Actualizado con el endpoint receptor `POST /api/check-in/reservations` (Adaptador Tolerante ACL), ejemplos con IDs enteros reales y configurado con `https://onrender.com` como servidor principal por defecto.
 - **Pruebas Automatizadas:** Suite completa de `8/8` tests pasando en verde (`tests/health.test.js` y `tests/integration.test.js`).
+
+# Contexto del Proyecto: Microservicio Check-in / Check-out (Equipo 11)
+
+## Descripción General
+Microservicio de **Recepción (Check-in y Check-out)** para el ecosistema del crucero **Sierra Madre Resort & Casino** (`PR11`).
+- **Repositorio Activo (Integración Real):** `https://github.com`
+- **Repositorio de Respaldo (Congelado con Mocks):** `https://github.com`
+- **URL de Producción (Render):** `https://onrender.com` (`Deploy succeeded | Live`)
+- **Documentación Swagger:** `https://onrender.com/docs` (`docs/swagger.json` v1.3.0)
+- **Health Check:** `https://onrender.com/health`
+
+---
+
+## Arquitectura y Stack Tecnológico
+- **Runtime & Framework:** Node.js 20 (ESM) + Express (`src/app.js`, `src/index.js`).
+- **Arquitectura en Capas + Anti-Corruption Layer (ACL):**
+  - `src/routes/checkin.route.js`: Endpoints REST bajo `/api/check-in`.
+  - `src/controllers/checkin.controller.js`: Manejo HTTP y respuestas estandarizadas.
+  - `src/validators/checkin.validator.js`: Validación tolerante con **Zod** (`.passthrough()` para aceptar campos adicionales de otros microservicios sin rechazar peticiones).
+  - `src/services/checkin.service.js`: Lógica de negocio, transacciones SQL y cliente HTTP saliente (`fetchExternalService` con trazabilidad `[OUTBOUND REQUEST]` / `[INBOUND RESPONSE]`).
+  - `src/db/`: Cliente PostgreSQL (`client.js` usando `pg.Pool` con SSL) y script de creación de tablas (`migrate.js`).
+  - `public/index.html`: Interfaz web de Recepción y Gerente conectada directamente a los endpoints reales (sin datos ficticios ni *mocks*).
+- **Contenerización y CI/CD:**
+  - `Dockerfile`: Imagen multi-etapa `node:20-slim`. Ejecuta `npm run migrate && npm start` al arrancar (sin `seed`).
+  - `render.yaml`: Configuración de despliegue en Render (`sync: false` para secretos y URLs externas).
+  - `.github/workflows/ci.yml`: Ejecuta `npm run lint` y `npm run test` (Vitest + Supertest, `8/8` pruebas pasando en verde).
+
+---
+
+## Base de Datos Oficial (PostgreSQL en Neon - 16 Tablas PR11)
+Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE_URL` en Render. Implementada según el Modelo Relacional y Diccionario de Datos oficial del Equipo 11:
+- **Check-in (10 tablas):** `Pasajero`, `Cabina`, `Reservacion`, `Registro_checkin`, `solicitud_correcion`, `decision_excepcion`, `Solicitud_cabina`, `Envio_equipaje`, `Pieza_equipaje`, `reporte_error_equipaje`.
+- **Check-out y Pagos (6 tablas):** `reporte_estado`, `cuenta`, `cargo`, `cobro`, `deposito`, `comprobante`.
+- **Soporte ACL (`JSONB`):** Las tablas `Reservacion`, `Cabina`, `reporte_estado` y `deposito` incluyen la columna `payload_externo JSONB` para conservar intactos los JSON enviados por otros equipos.
+- **Estado de Datos:** Verificada en vivo mediante Swagger (`POST /api/check-in/reservations` -> `201 Created`) y posteriormente limpiada mediante `TRUNCATE TABLE ... RESTART IDENTITY CASCADE` (las 16 tablas están en cero e IDs reiniciados a `1`, listas para recibir datos reales en clase).
+
+---
+
+## Variables de Entorno (`src/config/env.js`)
+- `PORT`: Puerto del servidor (`3000`).
+- `NODE_ENV`: `development` | `production` | `test`.
+- `DATABASE_URL`: Cadena de conexión a PostgreSQL en Neon.
+- `PUBLIC_URL`: `https://onrender.com` (usada para generar la URL del QR).
+- `RESERVATIONS_URL`: Endpoint `POST` del microservicio de Reservaciones.
+- `BANK_URL`: Endpoint `POST` del microservicio de Banco.
+- `CABIN_AVAILABILITY_URL`: Endpoint `GET` base de disponibilidad de Cabinas (`/:cabinId`).
+- `CABIN_CHECKOUT_URL`: Endpoint `GET` base de reporte de daños/cargos de Cabinas (`/:cabinId`).
+
+---
+
+## Endpoints Expuestos (`/api/check-in`)
+- `POST /api/check-in/reservations` — **Receptor ACL:** Recibe pasajeros individuales o familias completas desde Reservaciones y los guarda en `Cabina`, `Pasajero` y `Reservacion`.
+- `POST /api/check-in/initiate` — Inicia check-in validando reserva y regla de mayoría de edad (`ST01`).
+- `POST /api/check-in/confirm-reservation` — Envía solicitud de confirmación a Reservaciones (`ST05`).
+- `POST /api/check-in/pay` — Envía cargo al microservicio de Banco y registra en `cargo`, `cobro`, `deposito` y `comprobante` (`ST04`).
+- `GET /api/check-in/cabins` — Lista cabinas registradas localmente.
+- `POST /api/check-in/cabin` — Consulta disponibilidad a Cabinas, registra en `Solicitud_cabina` y asigna (`ST06`).
+- `POST /api/check-in/luggage` — Registra maletas en `Envio_equipaje` y `Pieza_equipaje` (`ST07`).
+- `POST /api/check-in/checkout` — Consulta reporte de daños a Cabinas (`reporte_estado`), cobra cargos extra con Banco y cierra `cuenta` (`ST08`-`ST12`).
+- `GET /api/check-in/boarding-pass/:id` — Renderiza vista HTML del pase de abordar.
+- `GET /api/check-in/:id/qr` — Genera código QR en Base64 (`SU02`).
+
+---
+
+## Pendientes para Próxima Sesión
+1. Agregar variable `BOARDING_URL` e integrar envío saliente hacia el microservicio de **Embarque (`CHK-EMB`)** con la interfaz `DATOS_PASAJERO` al completar el check-in / generar QR.
+2. Configurar en **Render -> Environment** las URLs reales (`RESERVATIONS_URL`, `BANK_URL`, `CABIN_AVAILABILITY_URL`, `CABIN_CHECKOUT_URL`, `BOARDING_URL`) en cuanto los demás equipos compartan sus enlaces.
