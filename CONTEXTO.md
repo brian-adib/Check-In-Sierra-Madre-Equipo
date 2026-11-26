@@ -109,3 +109,9 @@ Validadas al arrancar mediante Zod:
 ## Limpieza de Frontend (`public/index.html`)
 - Se eliminaron las reservaciones ficticias (`FAM-001` a `FAM-010`) y las cabinas simuladas en `catch()`.
 - Se conectó el dashboard al flujo real de Check-in (`POST /api/check-in/initiate`, `/confirm-reservation`, `/cabin`, `/luggage`, `/{id}/qr`) y al endpoint real de Check-out (`POST /api/check-in/checkout`).
+
+## Base de Datos Oficial (PostgreSQL en Neon - 16 Tablas PR11)
+Implementado exactamente según el Modelo Relacional y Diccionario de Datos oficial del Equipo 11:
+- **Check-in (10 tablas):** `Pasajero`, `Cabina`, `Reservacion`, `Registro_checkin`, `solicitud_correcion`, `decision_excepcion`, `Solicitud_cabina`, `Envio_equipaje`, `Pieza_equipaje`, `reporte_error_equipaje`.
+- **Check-out y Pagos (6 tablas):** `reporte_estado`, `cuenta`, `cargo`, `cobro`, `deposito`, `comprobante`.
+- **Pendiente inmediato:** Adaptar `src/services/checkin.service.js`, `src/validators/checkin.validator.js` y `tests/integration.test.js` para consultar e insertar directamente sobre estas 16 tablas oficiales.
