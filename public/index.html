@@ -256,7 +256,82 @@ function irVista(v) {
 
 /* ================= FLUJO RECEPCIÓN ================= */
 function renderInicio() {
-  /* Cabinas disponibles: si ya las tenemos en CABS las contamos,
+  $("#view").innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card">
+        <h4>Check-ins Pendientes</h4>
+        <div class="value" id="stat-pendientes">${Object.keys(RES).length}</div>
+      </div>
+      <div class="stat-card ok">
+        <h4>Cabinas Disponibles</h4>
+        <div class="value">4</div>
+      </div>
+      <div class="stat-card warn">
+        <h4>Pagos Pendientes</h4>
+        <div class="value">1</div>
+      </div>
+    </div>
+
+    <div class="row sp mt">
+      <h3>Reservaciones en el Sistema (ST01)</h3>
+      <div style="position:relative; width:300px;">
+        <input type="text" id="search-input" oninput="filtrarReservaciones()" placeholder="Buscar por nombre o código..." style="padding-left:36px; border-radius:20px;">
+        <svg style="position:absolute; left:12px; top:12px; color:var(--mut);" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+      </div>
+    </div>
+    
+    <div class="grid mt" id="reservaciones-container">
+      <!-- Aquí se inyectan las tarjetas -->
+    </div>
+  `;
+  
+  // Renderizamos por primera vez todas las reservaciones
+  filtrarReservaciones();
+}
+
+function filtrarReservaciones() {
+  const query = document.getElementById('search-input').value.toLowerCase();
+  const container = document.getElementById('reservaciones-container');
+  const countDisplay = document.getElementById('stat-pendientes');
+  
+  const filtradas = Object.keys(RES).filter(id => {
+    const r = RES[id];
+    const matchId = id.toLowerCase().includes(query);
+    const matchPax = r.pax.some(p => p.n.toLowerCase().includes(query));
+    return matchId || matchPax;
+  });
+
+  if (filtradas.length === 0) {
+    container.innerHTML = `<div class="note" style="grid-column: 1/-1; text-align:center; color:var(--mut);">No se encontraron reservaciones con ese criterio.</div>`;
+    if (countDisplay) countDisplay.textContent = "0";
+    return;
+  }
+
+  if (countDisplay) countDisplay.textContent = filtradas.length;
+
+  container.innerHTML = filtradas.map(id => {
+    const r = RES[id];
+    const isMinorOnly = r.pax.every(p => p.e < 18);
+    const hasMinor = r.pax.some(p => p.e < 18);
+    
+    return `
+      <button class="opt" onclick="iniciarCheckin('${id}')">
+        <div>
+          <div class="row sp" style="width:200px;">
+            <b>${id}</b>
+            ${isMinorOnly ? '<span class="tag err">Menores Solos</span>' : ''}
+          </div>
+          <span class="mut" style="margin-top:8px; display:block;">${r.tipo} · ${r.pax.length} pax</span>
+          <div style="margin-top:12px; font-size:12px; color:var(--mut);">
+            ${hasMinor ? 'Incluye menores' : 'Solo adultos'}
+          </div>
+        </div>
+        <div class="tag vip">Iniciar &rarr;</div>
+      </button>
+    `;
+  }).join("");
+}
+/* Cabinas disponibles: si ya las tenemos en CABS las contamos,
      si no, arrancamos con '?' y se actualizan al cargar. */
   const cabinasDisponibles = CABS.length
     ? CABS.filter(c => (c.cap - c.occ) > 0).length
