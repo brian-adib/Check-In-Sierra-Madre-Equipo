@@ -1,3 +1,75 @@
+# Contexto del Proyecto: Microservicio Check-in / Check-out (Equipo 11)
+
+## Descripción General
+Microservicio de **Recepción (Check-in y Check-out)** para el ecosistema del crucero **Sierra Madre Resort & Casino** (`PR11`).
+- **Repositorio Activo (Integración Real):** `https://github.com`
+- **Repositorio de Respaldo (Congelado con Mocks):** `https://github.com`
+- **URL de Producción (Render):** `https://onrender.com`
+- **Documentación Swagger:** `/docs` (`docs/swagger.json` v1.2.0)
+- **Health Check:** `/health`
+
+---
+
+## Arquitectura y Stack Tecnológico
+- **Runtime & Framework:** Node.js 20 (ESM) + Express (`src/app.js`, `src/index.js`).
+- **Arquitectura en Capas:**
+  - `src/routes/`: Definición de endpoints REST (`/health`, `/api/check-in/*`).
+  - `src/controllers/`: Manejo de peticiones HTTP, respuestas estandarizadas y validación de entrada con **Zod** (`src/validators/`).
+  - `src/services/checkin.service.js`: Lógica de negocio, transacciones SQL y cliente HTTP saliente (`fetchExternalService` con trazabilidad `[OUTBOUND REQUEST]` / `[INBOUND RESPONSE]`).
+  - `src/db/`: Cliente PostgreSQL (`client.js` usando `pg.Pool`) y script de creación de tablas (`migrate.js`).
+  - `public/index.html`: Interfaz web de Recepción y Gerente conectada directamente a los endpoints reales (sin datos ficticios ni *mocks*).
+- **Contenerización y CI/CD:**
+  - `Dockerfile`: Imagen multi-etapa `node:20-slim`. Ejecuta `npm run migrate && npm start` al arrancar (sin `seed`).
+  - `render.yaml`: Configuración de despliegue en Render (`sync: false` para secretos y URLs externas).
+  - `.github/workflows/ci.yml`: Ejecuta `npm run lint` y `npm run test` (Vitest + Supertest) en cada `push` o `pull_request`.
+
+---
+
+## Base de Datos (PostgreSQL)
+Migrado completamente de SQLite (`@libsql/client`) a **PostgreSQL (`pg`)**. Se eliminó `src/db/seed.js` para operar únicamente con datos reales.
+- **Tablas definidas en `src/db/migrate.js`:**
+  1. `check_in_groups` (`id`, `group_code`, `status`, `created_at`)
+  2. `passengers` (`id`, `group_id`, `first_name`, `last_name`, `document_number`, `birth_date`, `is_vip`)
+  3. `cabins` (`id`, `cabin_number`, `deck`, `capacity`, `occupied`) — se sincroniza dinámicamente mediante `ON CONFLICT (id) DO UPDATE` al consultar disponibilidad real.
+  4. `check_ins` (`id`, `passenger_id`, `cabin_id`, `status`, `qr_payload`, `updated_at`)
+  5. `payments` (`id`, `check_in_id`, `external_transaction_id`, `amount_cents`, `concept`, `status`, `created_at`)
+  6. `luggage` (`id`, `check_in_id`, `bag_count`, `total_weight_kg`, `extra_fee_cents`, `created_at`)
+
+---
+
+## Variables de Entorno (`src/config/env.js`)
+Validadas al arrancar mediante Zod:
+- `PORT`: Puerto del servidor (default `3000`).
+- `NODE_ENV`: `development` | `production` | `test`.
+- `DATABASE_URL`: Cadena de conexión a PostgreSQL (`postgresql://...`).
+- `PUBLIC_URL`: URL pública del servicio para generar el enlace del QR (`https://onrender.com`).
+- `RESERVATIONS_URL`: Endpoint `POST` del microservicio de Reservaciones.
+- `BANK_URL`: Endpoint `POST` del microservicio de Banco.
+- `CABIN_AVAILABILITY_URL`: Endpoint `GET` base de disponibilidad de Cabinas (`/:cabinId`).
+- `CABIN_CHECKOUT_URL`: Endpoint `GET` base de reporte de daños/cargos de Cabinas (`/:cabinId`).
+
+---
+
+## Endpoints Expuestos (`/api/check-in`)
+- `POST /api/check-in/initiate` — Inicia check-in validando grupo y regla de mayoría de edad (`ST01`).
+- `POST /api/check-in/confirm-reservation` — Envía solicitud de confirmación a Reservaciones (`ST05`).
+- `POST /api/check-in/pay` — Envía cargo al microservicio de Banco y registra pago (`ST04`).
+- `GET /api/check-in/cabins` — Lista cabinas registradas localmente.
+- `POST /api/check-in/cabin` — Consulta disponibilidad al microservicio de Cabinas y asigna (`ST06`).
+- `POST /api/check-in/luggage` — Registra maletas y valida límites de peso/piezas (`ST07`).
+- `POST /api/check-in/checkout` — Consulta reporte de daños a Cabinas y liquida cargos extra con Banco (`ST08`-`ST12`).
+- `GET /api/check-in/boarding-pass/:id` — Renderiza vista HTML del pase de abordar.
+- `GET /api/check-in/:id/qr` — Genera código QR en Base64 (`SU02`).
+
+---
+
+## Estado Actual y Próximos Pasos
+- **Completado:** Eliminación total de `/api/mock` y `seed.js`; migración a `pg`; limpieza de `public/index.html`; pipeline de CI/CD en verde (`7/7` tests pasando).
+- **Pendiente:**
+  1. Crear la instancia de PostgreSQL en Render y configurar `DATABASE_URL` en el panel **Environment** del servicio web.
+  2. Crear endpoint receptor (ej. `POST /api/check-in/reservations`) para registrar en `check_in_groups` y `passengers` las reservaciones reales enviadas por el equipo de Reservaciones.
+  3. Integrar envío saliente hacia el microservicio de **Embarque** (`DATOS_PASAJERO`) al finalizar el check-in.
+
 ## Estado Actual de Integración (Sin Mocks)
 - **Rutas eliminadas:** Se eliminó `src/routes/mock.route.js` y se removió `/api/mock` de `src/app.js` (el respaldo con mocks quedó congelado en `brian-adib/Check-In-Sierra-Madre`).
 - **Servicios actualizados (`src/services/checkin.service.js`):** Se reemplazaron las URLs locales por `process.env.RESERVATIONS_URL`, `BANK_URL`, `CABIN_AVAILABILITY_URL` y `CABIN_CHECKOUT_URL` con helper `fetchExternalService` (logs `[OUTBOUND REQUEST]` / `[INBOUND RESPONSE]`).
