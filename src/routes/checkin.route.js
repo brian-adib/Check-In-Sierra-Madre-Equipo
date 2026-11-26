@@ -1,8 +1,20 @@
 import { Router } from 'express';
-import { initiate, confirmReservation, pay, cabin, luggage, checkout, listCabins, qr, boardingPass } from '../controllers/checkin.controller.js';
+import {
+  receiveReservation,
+  initiate,
+  confirmReservation,
+  pay,
+  cabin,
+  luggage,
+  checkout,
+  listCabins,
+  qr,
+  boardingPass
+} from '../controllers/checkin.controller.js';
 
 const router = Router();
 
+router.post('/reservations', receiveReservation);
 router.post('/initiate', initiate);
 router.post('/confirm-reservation', confirmReservation);
 router.post('/pay', pay);

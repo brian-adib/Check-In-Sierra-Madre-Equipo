@@ -1,14 +1,6 @@
 import { pool } from './client.js';
 
 const schemaSQL = `
-  -- Limpiar tablas anteriores si existen
-  DROP TABLE IF EXISTS luggage CASCADE;
-  DROP TABLE IF EXISTS payments CASCADE;
-  DROP TABLE IF EXISTS check_ins CASCADE;
-  DROP TABLE IF EXISTS cabins CASCADE;
-  DROP TABLE IF EXISTS passengers CASCADE;
-  DROP TABLE IF EXISTS check_in_groups CASCADE;
-
   -- ================= 10 TABLAS DE CHECK-IN =================
 
   CREATE TABLE IF NOT EXISTS Pasajero (
@@ -150,13 +142,19 @@ const schemaSQL = `
     monto_cobrado DECIMAL(10,2) NOT NULL,
     folio_deposito VARCHAR(30) NOT NULL
   );
+
+  -- ================= COLUMNAS TOLERANTES JSONB (ACL) =================
+  ALTER TABLE Reservacion ADD COLUMN IF NOT EXISTS payload_externo JSONB;
+  ALTER TABLE Cabina ADD COLUMN IF NOT EXISTS payload_externo JSONB;
+  ALTER TABLE reporte_estado ADD COLUMN IF NOT EXISTS payload_externo JSONB;
+  ALTER TABLE deposito ADD COLUMN IF NOT EXISTS payload_externo JSONB;
 `;
 
 async function runMigrations() {
-  console.log('🔄 Creando las 16 tablas oficiales del modelo relacional PR11 en PostgreSQL...');
+  console.log('🔄 Verificando/actualizando las 16 tablas oficiales PR11 con soporte JSONB...');
   try {
     await pool.query(schemaSQL);
-    console.log('✅ Las 16 tablas oficiales fueron creadas correctamente en PostgreSQL.');
+    console.log('✅ Esquema PR11 listo en PostgreSQL.');
   } catch (error) {
     console.error('❌ Error ejecutando migraciones en PostgreSQL:', error);
     process.exit(1);

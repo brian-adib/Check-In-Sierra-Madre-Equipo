@@ -115,3 +115,8 @@ Implementado exactamente según el Modelo Relacional y Diccionario de Datos ofic
 - **Check-in (10 tablas):** `Pasajero`, `Cabina`, `Reservacion`, `Registro_checkin`, `solicitud_correcion`, `decision_excepcion`, `Solicitud_cabina`, `Envio_equipaje`, `Pieza_equipaje`, `reporte_error_equipaje`.
 - **Check-out y Pagos (6 tablas):** `reporte_estado`, `cuenta`, `cargo`, `cobro`, `deposito`, `comprobante`.
 - **Pendiente inmediato:** Adaptar `src/services/checkin.service.js`, `src/validators/checkin.validator.js` y `tests/integration.test.js` para consultar e insertar directamente sobre estas 16 tablas oficiales.
+
+## Adaptador Tolerante (ACL) y Conexión Completa a las 16 Tablas Oficiales
+- **Esquema PostgreSQL (`src/db/migrate.js`):** Se agregaron columnas `payload_externo JSONB` en `Reservacion`, `Cabina`, `reporte_estado` y `deposito` para conservar el JSON crudo recibido de otros equipos sin perder compatibilidad con las 16 tablas del modelo relacional.
+- **Endpoint Receptor (`POST /api/check-in/reservations`):** Implementado con Lector Tolerante (Zod `.passthrough()`) capaz de recibir pasajeros individuales o familias completas (`pasajeros` / `passengers`) con variantes de campos en español o inglés y registrarlos automáticamente en `Cabina`, `Pasajero` y `Reservacion`.
+- **Servicios y Pruebas (`checkin.service.js`, `tests/integration.test.js`):** Todo el flujo de Check-in, Equipaje, Pagos, QR y Check-out opera ahora directamente sobre las 16 tablas oficiales (`Registro_checkin`, `Solicitud_cabina`, `Envio_equipaje`, `Pieza_equipaje`, `reporte_estado`, `cuenta`, `cargo`, `cobro`, `deposito`, `comprobante`).

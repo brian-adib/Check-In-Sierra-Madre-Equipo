@@ -1,7 +1,25 @@
-import { initiateCheckInSchema, payCheckInSchema, assignCabinSchema, luggageSchema } from '../validators/checkin.validator.js';
+import {
+  receiveReservationSchema,
+  initiateCheckInSchema,
+  payCheckInSchema,
+  assignCabinSchema,
+  luggageSchema
+} from '../validators/checkin.validator.js';
 import * as checkinService from '../services/checkin.service.js';
 
-const formatZodError = (error, res) => res.status(400).json({ success: false, error: { code: 'ERR_VALIDATION', message: error.errors[0].message } });
+const formatZodError = (error, res) =>
+  res.status(400).json({ success: false, error: { code: 'ERR_VALIDATION', message: error.errors.message } });
+
+export const receiveReservation = async (req, res, next) => {
+  try {
+    const validated = receiveReservationSchema.parse({ body: req.body });
+    const result = await checkinService.receiveExternalReservation(validated.body);
+    res.status(201).json({ success: true, data: result });
+  } catch (error) {
+    if (error.name === 'ZodError') return formatZodError(error, res);
+    next(error);
+  }
+};
 
 export const initiate = async (req, res, next) => {
   try {
@@ -93,10 +111,9 @@ export const boardingPass = async (req, res, next) => {
     const data = await checkinService.getBoardingPassData(id);
 
     if (!data) {
-      return res.status(404).send("<h1>Pase no encontrado</h1>");
+      return res.status(404).send('<h1>Pase no encontrado</h1>');
     }
 
-    // Devolvemos un HTML simple y bonito para que se vea en el celular
     res.send(`
       <!DOCTYPE html>
       <html lang="es">
@@ -120,7 +137,7 @@ export const boardingPass = async (req, res, next) => {
           <h1>Sierra Madre</h1>
           <div class="subtitle">Pase de Abordar Digital</div>
           
-          <div class="detail"><strong>Pasajero</strong> <span>${data.first_name} ${data.last_name}</span></div>
+          <div class="detail"><strong>Pasajero</strong> <span>${data.nombre_completo}</span></div>
           <div class="detail"><strong>Reservación</strong> <span>${data.group_code}</span></div>
           <div class="detail"><strong>Cabina</strong> <span>${data.cabin_number || 'Pendiente'}</span></div>
           
