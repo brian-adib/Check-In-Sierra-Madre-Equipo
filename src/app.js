@@ -9,7 +9,6 @@ import { fileURLToPath } from 'url';
 import { requestLogger } from './middlewares/logger.middleware.js';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware.js';
 import healthRoute from './routes/health.route.js';
-import mockRoute from './routes/mock.route.js';
 import checkinRoute from './routes/checkin.route.js';
 import swaggerDocument from '../docs/swagger.json' with { type: 'json' };
 
@@ -36,7 +35,6 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Routes
 app.use('/health', healthRoute);
-app.use('/api/mock', mockRoute);
 app.use('/api/check-in', checkinRoute);
 
 // Error Handling

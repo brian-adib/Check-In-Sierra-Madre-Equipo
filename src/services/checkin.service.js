@@ -2,6 +2,40 @@ import { db } from '../db/client.js';
 import { randomUUID } from 'crypto';
 import QRCode from 'qrcode';
 
+// URLs de servicios externos (en Render agrégalas en Environment)
+const RESERVATIONS_URL = process.env.RESERVATIONS_URL || 'http://localhost:3001/api/reservations/confirm';
+const BANK_URL = process.env.BANK_URL || 'http://localhost:3002/api/bank/charge';
+const CABIN_AVAILABILITY_URL = process.env.CABIN_AVAILABILITY_URL || 'http://localhost:3003/api/cabins/availability';
+const CABIN_CHECKOUT_URL = process.env.CABIN_CHECKOUT_URL || 'http://localhost:3003/api/cabins/checkout-report';
+
+// Helper para hacer fetch seguro y ver en logs de Render qué pasó
+async function fetchExternalService(url, options = {}) {
+  console.log(`[OUTBOUND REQUEST] -> ${options.method || 'GET'} ${url}`, options.body || '');
+  const response = await fetch(url, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+  });
+
+  const text = await response.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { rawResponse: text };
+  }
+
+  console.log(`[INBOUND RESPONSE] <- Status ${response.status} desde ${url}:`, data);
+
+  if (!response.ok) {
+    const error = new Error(`Servicio externo respondió con error ${response.status}`);
+    error.statusCode = response.status;
+    error.externalData = data;
+    throw error;
+  }
+
+  return data;
+}
+
 export const initiateCheckIn = async (data) => {
   const { groupCode } = data;
   const groupResult = await db.execute({ sql: 'SELECT id FROM check_in_groups WHERE group_code = ?', args: [groupCode] });
@@ -51,16 +85,14 @@ export const initiateCheckIn = async (data) => {
   }
 };
 
-// NUEVO: Enviar datos a Reservaciones
+// CONEXIÓN REAL A RESERVACIONES
 export const sendToReservations = async (checkInId) => {
-  const url = 'http://localhost:3000/api/mock/reservations/confirm';
-  const response = await fetch(url, {
+  const data = await fetchExternalService(RESERVATIONS_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ checkInId, status: 'PENDING_CONFIRMATION' })
   });
-  const data = await response.json();
-  if (!data.success) {
+
+  if (data.success === false || data.validado === false) {
     const error = new Error('Reservaciones rechazó el Check-in');
     error.code = 'ERR_RESERVATION_REJECTED';
     error.statusCode = 400;
@@ -69,28 +101,30 @@ export const sendToReservations = async (checkInId) => {
   return data;
 };
 
+// CONEXIÓN REAL A BANCO
 export const processPayment = async (data) => {
   const { checkInId, amount, documentNumber } = data;
-  const response = await fetch('http://localhost:3000/api/mock/bank/charge', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+  const result = await fetchExternalService(BANK_URL, {
+    method: 'POST',
     body: JSON.stringify({ amount, document: documentNumber })
   });
-  const result = await response.json();
-  if (!result.success) {
+
+  if (result.success === false) {
     const error = new Error('Payment declined');
     error.code = 'ERR_PAYMENT_PENDING';
     error.statusCode = 402;
     throw error;
   }
   await db.execute({ sql: `INSERT INTO payments (id, check_in_id, amount_cents, status) VALUES (?, ?, ?, 'PAID')`, args: [randomUUID(), checkInId, amount * 100] });
-  return { message: 'Payment processed successfully' };
+  return { message: 'Payment processed successfully', externalResponse: result };
 };
 
+// CONEXIÓN REAL A CABINAS (Disponibilidad)
 export const assignCabin = async (data) => {
   const { checkInId, cabinId } = data;
-  const response = await fetch(`http://localhost:3000/api/mock/cabin/availability/${cabinId}`);
-  const result = await response.json();
-  if (!result.success || !result.available) {
+  const result = await fetchExternalService(`${CABIN_AVAILABILITY_URL}/${cabinId}`);
+
+  if (result.success === false || result.available === false) {
     const error = new Error('Cabin is full or not found');
     error.code = 'ERR_CABIN_FULL';
     error.statusCode = 409;
@@ -113,7 +147,6 @@ export const getCabins = async () => {
   return result.rows;
 };
 
-// REEMPLAZA LA FUNCIÓN generateQR POR ESTA:
 export const generateQR = async (checkInId) => {
   const checkInResult = await db.execute({ sql: 'SELECT status, qr_payload FROM check_ins WHERE id = ?', args: [checkInId] });
   if (checkInResult.rows.length === 0) { const e = new Error('Check-in not found'); e.code = 'ERR_NOT_FOUND'; e.statusCode = 404; throw e; }
@@ -122,14 +155,12 @@ export const generateQR = async (checkInId) => {
   
   if (checkIn.qr_payload) return { qrBase64: checkIn.qr_payload };
   
-  // Apunta a nuestra nueva ruta del backend
-  const payload = `https://sierra-madre-checkin.onrender.com/api/check-in/boarding-pass/${checkInId}`;
+  const payload = `https://onrender.com{checkInId}`;
   
   const qrBase64 = await QRCode.toDataURL(payload);
   await db.execute({ sql: 'UPDATE check_ins SET qr_payload = ? WHERE id = ?', args: [qrBase64, checkInId] });
   return { qrBase64 };
 };
-
 
 export const registerLuggage = async (data) => {
   const { checkInId, bagCount, totalWeightKg, isVip } = data;
@@ -144,20 +175,21 @@ export const registerLuggage = async (data) => {
   return { message: 'Luggage registered successfully', extraFee };
 };
 
+// CONEXIÓN REAL A CABINAS Y BANCO EN CHECK-OUT
 export const processCheckout = async (checkInId, documentNumber) => {
   const result = await db.execute({ sql: 'SELECT cabin_id FROM check_ins WHERE id = ?', args: [checkInId] });
   if (result.rows.length === 0 || !result.rows[0].cabin_id) { const e = new Error('Cabin not assigned'); e.code = 'ERR_NO_CABIN'; e.statusCode = 400; throw e; }
   const cabinId = result.rows[0].cabin_id;
-  const cabinResponse = await fetch(`http://localhost:3000/api/mock/cabin/checkout-report/${cabinId}`);
-  const cabinReport = await cabinResponse.json();
+
+  const cabinReport = await fetchExternalService(`${CABIN_CHECKOUT_URL}/${cabinId}`);
+
   let chargeMessage = 'Check-out successful. No extra charges.';
   if (cabinReport.hasCharges && cabinReport.amount > 0) {
-    const bankResponse = await fetch('http://localhost:3000/api/mock/bank/charge', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const bankResult = await fetchExternalService(BANK_URL, {
+      method: 'POST',
       body: JSON.stringify({ amount: cabinReport.amount, document: documentNumber })
     });
-    const bankResult = await bankResponse.json();
-    if (!bankResult.success) { const e = new Error('Extra charges declined'); e.code = 'ERR_PAYMENT_PENDING'; e.statusCode = 402; throw e; }
+    if (bankResult.success === false) { const e = new Error('Extra charges declined'); e.code = 'ERR_PAYMENT_PENDING'; e.statusCode = 402; throw e; }
     await db.execute({ sql: `INSERT INTO payments (id, check_in_id, amount_cents, status) VALUES (?, ?, ?, 'PAID')`, args: [randomUUID(), checkInId, cabinReport.amount * 100] });
     chargeMessage = `Check-out successful. Extra charge of $${cabinReport.amount} processed for: ${cabinReport.reason}`;
   }
@@ -165,7 +197,6 @@ export const processCheckout = async (checkInId, documentNumber) => {
   return { message: chargeMessage };
 };
 
-// AÑADE ESTA NUEVA FUNCIÓN AL FINAL DEL ARCHIVO:
 export const getBoardingPassData = async (checkInId) => {
   const res = await db.execute({
     sql: `SELECT c.id, c.status, p.first_name, p.last_name, cab.cabin_number, g.group_code 
