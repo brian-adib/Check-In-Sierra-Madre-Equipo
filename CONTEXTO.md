@@ -15,3 +15,12 @@
 ## Corrección de Ruta `/pay` y URL de Pase de Abordar (QR)
 - **`src/services/checkin.service.js`:** Se corrigió la URL generada en `generateQR` para apuntar correctamente a `${baseUrl}/api/check-in/boarding-pass/${checkInId}` (usando `process.env.PUBLIC_URL` o `https://onrender.com`).
 - **`src/routes/checkin.route.js`:** Se conectó el endpoint `POST /api/check-in/pay` al controlador `pay` existente.
+
+## Soporte para Turso (BD en la Nube) y Actualización de Swagger
+- **`src/config/env.js` y `src/db/client.js`:** Se agregó soporte para `DATABASE_AUTH_TOKEN` y `PUBLIC_URL`, permitiendo conectar `@libsql/client` tanto a `file:local.db` en desarrollo como a una base de datos Turso persistente en Render.
+- **`docs/swagger.json`:** Actualizado a v1.2.0 sin referencias a mocks y documentando todos los endpoints reales (`/initiate`, `/confirm-reservation`, `/pay`, `/cabins`, `/cabin`, `/luggage`, `/checkout`, `/boarding-pass/{id}`, `/{id}/qr`).
+
+## Limpieza de Seed y Preparación para PostgreSQL (`Dockerfile` y `render.yaml`)
+- **`Dockerfile`:** Se eliminó `npm run seed` del comando de arranque (`CMD`) para evitar la carga de datos ficticios (`FAM-001` a `FAM-010`) en producción.
+- **`render.yaml`:** Se reemplazó `DATABASE_URL: "file:local.db"` por `sync: false` junto con las URLs de los microservicios externos para gestionar la conexión real a PostgreSQL desde el panel de Render.
+- **Siguiente paso:** Revisar `package.json` y migrar la capa de base de datos (`src/db/client.js`, `src/db/migrate.js` y consultas en `checkin.service.js`) de `@libsql/client` (SQLite) a `pg` (PostgreSQL).

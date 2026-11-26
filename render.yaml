@@ -11,4 +11,14 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        value: "file:local.db"
+        sync: false
+      - key: PUBLIC_URL
+        value: "https://onrender.com"
+      - key: RESERVATIONS_URL
+        sync: false
+      - key: BANK_URL
+        sync: false
+      - key: CABIN_AVAILABILITY_URL
+        sync: false
+      - key: CABIN_CHECKOUT_URL
+        sync: false

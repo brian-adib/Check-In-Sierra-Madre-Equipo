@@ -21,5 +21,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
-# Arrancar: Primero migra la DB, LUEGO la siembra con datos, y por último inicia el servidor
-CMD ["sh", "-c", "npm run migrate && npm run seed && npm start"]
+# Arrancar: Ejecuta migraciones de tablas reales e inicia el servidor (sin datos ficticios)
+CMD ["sh", "-c", "npm run migrate && npm start"]
