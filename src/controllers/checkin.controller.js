@@ -21,6 +21,15 @@ export const receiveReservation = async (req, res, next) => {
   }
 };
 
+export const listReservations = async (req, res, next) => {
+  try {
+    const reservations = await checkinService.getAllReservations();
+    res.status(200).json({ success: true, data: reservations });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const initiate = async (req, res, next) => {
   try {
     const validated = initiateCheckInSchema.parse({ body: req.body });

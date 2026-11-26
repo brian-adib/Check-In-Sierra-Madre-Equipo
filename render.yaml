@@ -22,3 +22,5 @@ services:
         sync: false
       - key: CABIN_CHECKOUT_URL
         sync: false
+      - key: BOARDING_URL
+        sync: false

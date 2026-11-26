@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   receiveReservation,
+  listReservations,
   initiate,
   confirmReservation,
   pay,
@@ -14,6 +15,7 @@ import {
 
 const router = Router();
 
+router.get('/reservations', listReservations);
 router.post('/reservations', receiveReservation);
 router.post('/initiate', initiate);
 router.post('/confirm-reservation', confirmReservation);

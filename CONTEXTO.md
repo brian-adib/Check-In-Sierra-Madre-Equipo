@@ -198,3 +198,9 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
 ## Pendientes para Próxima Sesión
 1. Agregar variable `BOARDING_URL` e integrar envío saliente hacia el microservicio de **Embarque (`CHK-EMB`)** con la interfaz `DATOS_PASAJERO` al completar el check-in / generar QR.
 2. Configurar en **Render -> Environment** las URLs reales (`RESERVATIONS_URL`, `BANK_URL`, `CABIN_AVAILABILITY_URL`, `CABIN_CHECKOUT_URL`, `BOARDING_URL`) en cuanto los demás equipos compartan sus enlaces.
+
+## Listado de Reservaciones y Conexión Saliente a Embarque (`CHK-EMB`)
+- **Variables de Entorno (`src/config/env.js`, `.env.example`, `render.yaml`):** Se agregó `BOARDING_URL` para apuntar al microservicio de Embarque.
+- **Nuevo Endpoint (`GET /api/check-in/reservations`):** Devuelve las reservaciones y pasajeros registrados en PostgreSQL (`Reservacion`, `Pasajero`, `Cabina`, `Registro_checkin`) para poblar dinámicamente el Dashboard del frontend.
+- **Integración Embarque (`generateQR` en `checkin.service.js`):** Al generar el código QR (`SU02`), el backend consulta los datos completos del pasajero y su equipaje y envía el payload `DATOS_PASAJERO` (`noCabina`, `horaRecepcion`, `noReservacion`, `nombreCompleto`, `tipoEquipaje`, `estado`) hacia `BOARDING_URL` de forma tolerante (no bloquea la entrega del QR si Embarque aún no está en línea).
+- **Pruebas (`tests/integration.test.js`):** Ampliadas a `9/9` pruebas pasando en verde cubriendo `GET /reservations` y el envío saliente hacia Embarque.
