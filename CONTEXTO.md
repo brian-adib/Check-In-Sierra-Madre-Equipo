@@ -259,3 +259,10 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
   - Conectado `generarFR011()` con los datos reales de la reservación desde Neon (`nombre_completo`, `num_cabina`, `nacionalidad`, `equipaje`) y restaurada codificación UTF-8 limpia.
 - **`tests/integration.test.js`:**
   - Ajustado mock de consulta `generateQR` en Vitest; suite completa de 10 tests pasando en verde.
+
+### Corrección de Llave Primaria en Subconsulta de Cabina (`generateQR`)
+- **`src/services/checkin.service.js`:** Corregida referencia de columna de ordenamiento en `generateQR(checkInId)` de `sc.id_solicitud` a `sc.id_solicitud_cab` conforme al esquema oficial de `Solicitud_cabina` en `src/db/migrate.js`.
+
+### Endpoint Índice Informativo en API
+- **`src/routes/checkin.route.js`:**
+  - Agregada ruta raíz `GET /api/check-in` que retorna un índice JSON descriptivo con todos los endpoints disponibles del microservicio, métodos HTTP y rutas a `/docs` y `/health`.
