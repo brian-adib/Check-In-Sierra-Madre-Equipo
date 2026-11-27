@@ -5,6 +5,7 @@ const RESERVATIONS_URL = process.env.RESERVATIONS_URL || 'http://localhost:3001/
 const BANK_URL = process.env.BANK_URL || 'http://localhost:3002/api/bank/charge';
 const CABIN_AVAILABILITY_URL = process.env.CABIN_AVAILABILITY_URL || 'http://localhost:3003/api/cabins/availability';
 const CABIN_CHECKOUT_URL = process.env.CABIN_CHECKOUT_URL || 'http://localhost:3003/api/cabins/checkout-report';
+const BOARDING_URL = process.env.BOARDING_URL || '';
 
 async function fetchExternalService(url, options = {}) {
   console.log(`[OUTBOUND REQUEST] -> ${options.method || 'GET'} ${url}`, options.body || '');
@@ -124,6 +125,34 @@ export const receiveExternalReservation = async (rawBody) => {
   } finally {
     client.release();
   }
+};
+
+// 1.B CONSULTAR RESERVACIONES REGISTRADAS EN NEON (GET /api/check-in/reservations)
+export const getAllReservations = async () => {
+  const result = await pool.query(
+    `SELECT
+       r.id_reservacion,
+       r.num_reservacion,
+       r.fecha_embarque,
+       r.fecha_desembarque,
+       r.estado AS estado_reservacion,
+       p.id_pasajero,
+       p.nombre_completo,
+       p.fecha_nacimiento,
+       p.nacionalidad,
+       c.id_cabina,
+       c.num_cabina,
+       c.estado AS estado_cabina,
+       rc.id_registro AS id_checkin,
+       rc.estado AS estado_checkin,
+       rc.qr_payload
+     FROM Reservacion r
+     JOIN Pasajero p ON r.id_pasajero = p.id_pasajero
+     LEFT JOIN Cabina c ON r.id_cabina = c.id_cabina
+     LEFT JOIN Registro_checkin rc ON r.id_reservacion = rc.id_reservacion
+     ORDER BY r.id_reservacion DESC`
+  );
+  return result.rows;
 };
 
 // 2. INICIAR CHECK-IN (ST01) - Busca por código exacto o familia (ej. RSV-FAM-01 o RSV-FAM-01-1)
@@ -252,28 +281,43 @@ export const processPayment = async (data) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const ctaRes = await client.query('SELECT id_cuenta FROM cuenta WHERE id_registro = $1 LIMIT 1', [idRegistro]);
+    const ctaRes = await client.query(
+      'SELECT id_cuenta FROM cuenta WHERE id_registro = $1 LIMIT 1',
+      [idRegistro]
+    );
     const idCuenta = ctaRes.rows[0]?.id_cuenta || (
-      await client.query("INSERT INTO cuenta (id_registro, estado) VALUES ($1, 'Abierta') RETURNING id_cuenta", [idRegistro])
+      await client.query(
+        "INSERT INTO cuenta (id_registro, estado) VALUES ($1, 'Abierta') RETURNING id_cuenta",
+        [idRegistro]
+      )
     ).rows[0].id_cuenta;
 
     const cargoRes = await client.query(
-      `INSERT INTO cargo (id_cuenta, descripcion, monto) VALUES ($1, 'Pago Check-in', $2) RETURNING id_cargo`,
+      `INSERT INTO cargo (id_cuenta, descripcion, monto)
+       VALUES ($1, 'Pago Check-in', $2)
+       RETURNING id_cargo`,
       [idCuenta, amount]
     );
+
     const cobroRes = await client.query(
-      `INSERT INTO cobro (id_cargo, forma_pago, ultimos4, monto) VALUES ($1, 'Tarjeta', $2, $3) RETURNING id_cobro`,
+      `INSERT INTO cobro (id_cargo, forma_pago, ultimos4, monto)
+       VALUES ($1, 'Tarjeta', $2, $3)
+       RETURNING id_cobro`,
       [cargoRes.rows[0].id_cargo, String(documentNumber).slice(-4), amount]
     );
+
     await client.query(
       `INSERT INTO deposito (id_cobro, monto, estado, folio_confirmacion, fecha_respuesta, payload_externo)
        VALUES ($1, $2, 'Aprobado', $3, CURRENT_TIMESTAMP, $4)`,
       [cobroRes.rows[0].id_cobro, amount, folio, JSON.stringify(result)]
     );
+
     await client.query(
-      `INSERT INTO comprobante (id_cuenta, monto_cobrado, folio_deposito) VALUES ($1, $2, $3)`,
+      `INSERT INTO comprobante (id_cuenta, monto_cobrado, folio_deposito)
+       VALUES ($1, $2, $3)`,
       [idCuenta, amount, folio]
     );
+
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
@@ -292,7 +336,6 @@ export const assignCabin = async (data) => {
   const numCabina = String(cabinId).trim().slice(0, 10);
 
   const result = await fetchExternalService(`${CABIN_AVAILABILITY_URL}/${encodeURIComponent(numCabina)}`);
-
   if (result.success === false || result.available === false) {
     const error = new Error('Cabin is full or not found');
     error.code = 'ERR_CABIN_FULL';
@@ -322,6 +365,7 @@ export const assignCabin = async (data) => {
       `UPDATE Registro_checkin SET id_cabina = $1, estado = 'En proceso' WHERE id_registro = $2`,
       [idCabina, idRegistro]
     );
+
     await client.query('COMMIT');
     return { message: 'Cabin assigned successfully', id_cabina: idCabina, num_cabina: numCabina };
   } catch (error) {
@@ -337,29 +381,67 @@ export const getCabins = async () => {
   return result.rows;
 };
 
-// 6. GENERAR QR (SU02)
+// 6. GENERAR QR (SU02) Y NOTIFICAR DATOS_PASAJERO A EMBARQUE (CHK-EMB)
 export const generateQR = async (checkInId) => {
   const idRegistro = Number(checkInId);
   const checkInResult = await pool.query(
-    'SELECT estado, qr_payload FROM Registro_checkin WHERE id_registro = $1',
+    `SELECT rc.estado, rc.qr_payload, r.num_reservacion, p.nombre_completo, c.num_cabina,
+            (SELECT pe.descripcion
+             FROM Envio_equipaje ee
+             JOIN Pieza_equipaje pe ON ee.id_envio = pe.id_envio
+             WHERE ee.id_registro = rc.id_registro
+             LIMIT 1) AS tipo_equipaje
+     FROM Registro_checkin rc
+     LEFT JOIN Reservacion r ON rc.id_reservacion = r.id_reservacion
+     LEFT JOIN Pasajero p ON r.id_pasajero = p.id_pasajero
+     LEFT JOIN Cabina c ON rc.id_cabina = c.id_cabina
+     WHERE rc.id_registro = $1`,
     [idRegistro]
   );
+
   if (checkInResult.rows.length === 0) {
     const e = new Error('Check-in not found');
     e.code = 'ERR_NOT_FOUND';
     e.statusCode = 404;
     throw e;
   }
+
   const checkIn = checkInResult.rows[0];
+  let qrBase64 = checkIn.qr_payload;
+  if (!qrBase64) {
+    const baseUrl = process.env.PUBLIC_URL || 'https://onrender.com';
+    const payload = `${baseUrl}/api/check-in/boarding-pass/${idRegistro}`;
+    qrBase64 = await QRCode.toDataURL(payload);
+    await pool.query('UPDATE Registro_checkin SET qr_payload = $1 WHERE id_registro = $2', [qrBase64, idRegistro]);
+  }
 
-  if (checkIn.qr_payload) return { qrBase64: checkIn.qr_payload };
+  const datosPasajero = {
+    evento: 'DATOS_PASAJERO',
+    noCabina: checkIn.num_cabina || 'PENDIENTE',
+    horaRecepcion: new Date().toISOString(),
+    noReservacion: checkIn.num_reservacion || `RES-${idRegistro}`,
+    nombreCompleto: checkIn.nombre_completo || 'Pasajero',
+    tipoEquipaje: checkIn.tipo_equipaje || 'Sin equipaje registrado',
+    estado: checkIn.estado || 'En proceso'
+  };
 
-  const baseUrl = process.env.PUBLIC_URL || 'https://sierra-madre-checkin.onrender.com';
-  const payload = `${baseUrl}/api/check-in/boarding-pass/${idRegistro}`;
+  const targetBoardingUrl = process.env.BOARDING_URL || BOARDING_URL;
+  let boardingSync = { sent: false, status: 'SKIPPED_NO_URL' };
 
-  const qrBase64 = await QRCode.toDataURL(payload);
-  await pool.query('UPDATE Registro_checkin SET qr_payload = $1 WHERE id_registro = $2', [qrBase64, idRegistro]);
-  return { qrBase64 };
+  if (targetBoardingUrl) {
+    try {
+      const extResp = await fetchExternalService(targetBoardingUrl, {
+        method: 'POST',
+        body: JSON.stringify(datosPasajero)
+      });
+      boardingSync = { sent: true, status: 'DELIVERED', response: extResp };
+    } catch (syncErr) {
+      console.warn(`[WARN EMBARQUE] No se pudo notificar a ${targetBoardingUrl}:`, syncErr.message);
+      boardingSync = { sent: false, status: 'UNREACHABLE', error: syncErr.message };
+    }
+  }
+
+  return { qrBase64, datosPasajero, boardingSync };
 };
 
 // 7. REGISTRAR EQUIPAJE (ST07) -> Envio_equipaje + Pieza_equipaje
@@ -373,6 +455,7 @@ export const registerLuggage = async (data) => {
     const extraWeight = Math.max(0, totalWeightKg - 20);
     extraFee = (extraBags * 10) + (extraWeight * 10);
   }
+
   if (extraFee > 0) {
     const e = new Error('Luggage limit exceeded');
     e.code = 'ERR_LUGGAGE_LIMIT';
@@ -390,10 +473,12 @@ export const registerLuggage = async (data) => {
       e.statusCode = 404;
       throw e;
     }
-    const idCabina = regRes.rows[0].id_cabina;
 
+    const idCabina = regRes.rows[0].id_cabina;
     const envRes = await client.query(
-      `INSERT INTO Envio_equipaje (id_registro, id_cabina, estado) VALUES ($1, $2, 'Enviado') RETURNING id_envio`,
+      `INSERT INTO Envio_equipaje (id_registro, id_cabina, estado)
+       VALUES ($1, $2, 'Enviado')
+       RETURNING id_envio`,
       [idRegistro, idCabina]
     );
     const idEnvio = envRes.rows[0].id_envio;
@@ -433,8 +518,8 @@ export const processCheckout = async (checkInId, documentNumber) => {
     e.statusCode = 400;
     throw e;
   }
-  const { id_cabina: idCabina, num_cabina: numCabina } = result.rows[0];
 
+  const { id_cabina: idCabina, num_cabina: numCabina } = result.rows[0];
   const cabinReport = await fetchExternalService(`${CABIN_CHECKOUT_URL}/${encodeURIComponent(numCabina)}`);
   const hasCharges = Boolean(cabinReport.hasCharges && cabinReport.amount > 0);
 
@@ -442,7 +527,6 @@ export const processCheckout = async (checkInId, documentNumber) => {
   let chargeMessage = 'Check-out successful. No extra charges.';
   try {
     await client.query('BEGIN');
-
     const repRes = await client.query(
       `INSERT INTO reporte_estado (id_registro, id_cabina, encargado, existen_danos, descripcion, payload_externo)
        VALUES ($1, $2, $3, $4, $5, $6)
@@ -468,6 +552,7 @@ export const processCheckout = async (checkInId, documentNumber) => {
         method: 'POST',
         body: JSON.stringify({ amount: cabinReport.amount, document: documentNumber })
       });
+
       if (bankResult.success === false) {
         const e = new Error('Extra charges declined');
         e.code = 'ERR_PAYMENT_PENDING';
@@ -476,22 +561,30 @@ export const processCheckout = async (checkInId, documentNumber) => {
       }
 
       const folio = String(bankResult.transactionId || bankResult.noTr || `FOL-${Date.now()}`).slice(0, 30);
+
       const cargoRes = await client.query(
         `INSERT INTO cargo (id_cuenta, id_report_estado, descripcion, monto)
-         VALUES ($1, $2, $3, $4) RETURNING id_cargo`,
+         VALUES ($1, $2, $3, $4)
+         RETURNING id_cargo`,
         [idCuenta, idReportEstado, (cabinReport.reason || 'Cargo Check-out').slice(0, 250), cabinReport.amount]
       );
+
       const cobroRes = await client.query(
-        `INSERT INTO cobro (id_cargo, forma_pago, ultimos4, monto) VALUES ($1, 'Tarjeta', $2, $3) RETURNING id_cobro`,
+        `INSERT INTO cobro (id_cargo, forma_pago, ultimos4, monto)
+         VALUES ($1, 'Tarjeta', $2, $3)
+         RETURNING id_cobro`,
         [cargoRes.rows[0].id_cargo, String(documentNumber).slice(-4), cabinReport.amount]
       );
+
       await client.query(
         `INSERT INTO deposito (id_cobro, monto, estado, folio_confirmacion, fecha_respuesta, payload_externo)
          VALUES ($1, $2, 'Aprobado', $3, CURRENT_TIMESTAMP, $4)`,
         [cobroRes.rows[0].id_cobro, cabinReport.amount, folio, JSON.stringify(bankResult)]
       );
+
       await client.query(
-        `INSERT INTO comprobante (id_cuenta, monto_cobrado, folio_deposito) VALUES ($1, $2, $3)`,
+        `INSERT INTO comprobante (id_cuenta, monto_cobrado, folio_deposito)
+         VALUES ($1, $2, $3)`,
         [idCuenta, cabinReport.amount, folio]
       );
 

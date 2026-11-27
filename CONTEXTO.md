@@ -204,3 +204,18 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
 - **Nuevo Endpoint (`GET /api/check-in/reservations`):** Devuelve las reservaciones y pasajeros registrados en PostgreSQL (`Reservacion`, `Pasajero`, `Cabina`, `Registro_checkin`) para poblar dinámicamente el Dashboard del frontend.
 - **Integración Embarque (`generateQR` en `checkin.service.js`):** Al generar el código QR (`SU02`), el backend consulta los datos completos del pasajero y su equipaje y envía el payload `DATOS_PASAJERO` (`noCabina`, `horaRecepcion`, `noReservacion`, `nombreCompleto`, `tipoEquipaje`, `estado`) hacia `BOARDING_URL` de forma tolerante (no bloquea la entrega del QR si Embarque aún no está en línea).
 - **Pruebas (`tests/integration.test.js`):** Ampliadas a `9/9` pruebas pasando en verde cubriendo `GET /reservations` y el envío saliente hacia Embarque.
+
+## Listado de Reservaciones (`GET /reservations`) y Envío a Embarque (`CHK-EMB`)
+- **`src/config/env.js`, `.env.example`, `render.yaml`:** Agregada variable `BOARDING_URL` para conectar con el microservicio de Embarque.
+- **Nuevo Endpoint (`GET /api/check-in/reservations`):** Consulta `Reservacion`, `Pasajero`, `Cabina` y `Registro_checkin` para mostrar en el Dashboard las reservaciones reales recibidas.
+- **Envío a Embarque (`generateQR` en `checkin.service.js`):** Al generar el pase QR (`SU02`), envía `DATOS_PASAJERO` (`noCabina`, `horaRecepcion`, `noReservacion`, `nombreCompleto`, `tipoEquipaje`, `estado`) hacia `BOARDING_URL` de forma tolerante.
+
+
+### Actualización de Servicios, Integración con Embarque y Pruebas (Paso 1 Completado)
+- **`src/services/checkin.service.js`:**
+  - Implementado `getAllReservations()` consultando `Reservacion`, `Pasajero`, `Cabina` y `Registro_checkin` en Neon para alimentar `GET /api/check-in/reservations`.
+  - Actualizado `generateQR(checkInId)` con envío saliente HTTP `POST` tolerante a fallos (`try/catch`) hacia `BOARDING_URL` con el contrato oficial `DATOS_PASAJERO` (`evento`, `noCabina`, `horaRecepcion`, `noReservacion`, `nombreCompleto`, `tipoEquipaje`, `estado`).
+- **`tests/integration.test.js`:**
+  - Suite actualizada en Vitest (9 tests totales en verde junto con `health.test.js`), validando `GET /api/check-in/reservations` y la notificación saliente hacia `BOARDING_URL`.
+
+  

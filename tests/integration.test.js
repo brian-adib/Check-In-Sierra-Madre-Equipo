@@ -5,20 +5,59 @@ import { pool } from '../src/db/client.js';
 
 describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales)', () => {
   beforeAll(() => {
+    process.env.BOARDING_URL = 'http://localhost:3004/api/boarding/passengers';
+
     vi.spyOn(pool, 'query').mockImplementation((sql, params) => {
+      if (sql.includes('ORDER BY r.id_reservacion DESC')) {
+        return Promise.resolve({
+          rows: [
+            {
+              id_reservacion: 10,
+              num_reservacion: 'RSV-FAM-01',
+              estado_reservacion: 'Vigente',
+              id_pasajero: 20,
+              nombre_completo: 'Carlos Ruiz',
+              num_cabina: 'C-104',
+              id_checkin: 101,
+              estado_checkin: 'En proceso'
+            }
+          ]
+        });
+      }
       if (sql.includes('FROM Reservacion r')) {
         if (Array.isArray(params) && params.includes('RSV-FAM-01')) {
           return Promise.resolve({
-            rows: [{ id_reservacion: 10, num_reservacion: 'RSV-FAM-01', id_cabina: 5, nombre_completo: 'Carlos Ruiz', fecha_nacimiento: '1988-04-12' }]
+            rows: [
+              {
+                id_reservacion: 10,
+                num_reservacion: 'RSV-FAM-01',
+                id_cabina: 5,
+                nombre_completo: 'Carlos Ruiz',
+                fecha_nacimiento: '1988-04-12'
+              }
+            ]
           });
         }
         return Promise.resolve({ rows: [] });
       }
-      if (sql.includes('FROM Registro_checkin rc')) {
-        return Promise.resolve({ rows: [{ id_registro: 101, num_reservacion: 'RSV-FAM-01', nombre_completo: 'Carlos Ruiz' }] });
+      if (sql.includes('SELECT rc.estado, rc.qr_payload')) {
+        return Promise.resolve({
+          rows: [
+            {
+              estado: 'En proceso',
+              qr_payload: null,
+              num_reservacion: 'RSV-FAM-01',
+              nombre_completo: 'Carlos Ruiz',
+              num_cabina: 'C-104',
+              tipo_equipaje: 'Maleta 1 (18 kg total)'
+            }
+          ]
+        });
       }
-      if (sql.includes('SELECT estado, qr_payload FROM Registro_checkin')) {
-        return Promise.resolve({ rows: [{ estado: 'En proceso', qr_payload: null }] });
+      if (sql.includes('FROM Registro_checkin rc')) {
+        return Promise.resolve({
+          rows: [{ id_registro: 101, num_reservacion: 'RSV-FAM-01', nombre_completo: 'Carlos Ruiz' }]
+        });
       }
       return Promise.resolve({ rows: [] });
     });
@@ -50,6 +89,13 @@ describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales)', () => {
           text: () => Promise.resolve(JSON.stringify({ success: true, available: true }))
         });
       }
+      if (url.includes('/boarding/passengers')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () => Promise.resolve(JSON.stringify({ success: true, message: 'Pasajero recibido en Embarque' }))
+        });
+      }
       return Promise.resolve({
         ok: true,
         status: 200,
@@ -72,7 +118,16 @@ describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales)', () => {
     expect(res.body.data.codigoBase).toBe('RSV-FAM-01');
   });
 
-  it('2. Debe iniciar el check-in de una reserva real existente (ST01)', async () => {
+  it('2. Debe listar las reservaciones registradas en Neon (GET /api/check-in/reservations)', async () => {
+    const res = await request(app).get('/api/check-in/reservations');
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data[0].num_reservacion).toBe('RSV-FAM-01');
+  });
+
+  it('3. Debe iniciar el check-in de una reserva real existente (ST01)', async () => {
     const res = await request(app)
       .post('/api/check-in/initiate')
       .send({ groupCode: 'RSV-FAM-01' });
@@ -82,7 +137,7 @@ describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales)', () => {
     expect(res.body.data.checkInIds).toContain(101);
   });
 
-  it('3. Debe rechazar una reserva inexistente', async () => {
+  it('4. Debe rechazar una reserva inexistente', async () => {
     const res = await request(app)
       .post('/api/check-in/initiate')
       .send({ groupCode: 'RSV-NO-EXISTE' });
@@ -91,7 +146,7 @@ describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales)', () => {
     expect(res.body.error.code).toBe('ERR_RESERVATION_NOT_FOUND');
   });
 
-  it('4. Debe enviar los datos a Reservaciones para confirmar el Check-in (ST05)', async () => {
+  it('5. Debe enviar los datos a Reservaciones para confirmar el Check-in (ST05)', async () => {
     const res = await request(app)
       .post('/api/check-in/confirm-reservation')
       .send({ checkInId: 101 });
@@ -100,7 +155,7 @@ describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales)', () => {
     expect(res.body.success).toBe(true);
   });
 
-  it('5. Debe asignar una cabina real correctamente (ST06)', async () => {
+  it('6. Debe asignar una cabina real correctamente (ST06)', async () => {
     const res = await request(app)
       .post('/api/check-in/cabin')
       .send({ checkInId: 101, cabinId: 'C-104' });
@@ -109,12 +164,19 @@ describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales)', () => {
     expect(res.body.success).toBe(true);
   });
 
-  it('6. Debe generar el código QR en Base64 (SU02)', async () => {
+  it('7. Debe generar el código QR en Base64 y enviar DATOS_PASAJERO a Embarque (SU02 / CHK-EMB)', async () => {
     const res = await request(app).get('/api/check-in/101/qr');
 
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.qrBase64).toContain('data:image/png;base64,');
+    expect(res.body.data.datosPasajero).toMatchObject({
+      evento: 'DATOS_PASAJERO',
+      noCabina: 'C-104',
+      noReservacion: 'RSV-FAM-01',
+      nombreCompleto: 'Carlos Ruiz',
+      estado: 'En proceso'
+    });
+    expect(res.body.data.boardingSync.sent).toBe(true);
   });
 });
-
