@@ -1,4 +1,4 @@
-import { pool } from '../db/client.js';
+﻿import { pool } from '../db/client.js';
 import QRCode from 'qrcode';
 
 const RESERVATIONS_URL = process.env.RESERVATIONS_URL || 'http://localhost:3001/api/reservations/confirm';
@@ -274,6 +274,22 @@ export const sendToReservations = async (checkInId) => {
 export const processPayment = async (data) => {
   const { checkInId, amount, documentNumber } = data;
   const idRegistro = Number(checkInId);
+  const monto = Number(amount);
+
+  if (!idRegistro || Number.isNaN(idRegistro)) {
+    const err = new Error('ID de registro inválido');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (!monto || monto <= 0) {
+    const err = new Error('El monto debe ser mayor a 0');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const docLimpio = String(documentNumber || '0000').trim();
+  const ultimos4 = docLimpio.slice(-4).padStart(4, '0');
   const targetUrl = process.env.BANK_URL || BANK_URL;
 
   let result = null;
@@ -282,65 +298,66 @@ export const processPayment = async (data) => {
   try {
     result = await fetchExternalService(targetUrl, {
       method: 'POST',
-      body: JSON.stringify({ amount, document: documentNumber })
+      body: JSON.stringify({
+        numTarjeta: docLimpio,
+        nomCompleto: 'Pasajero Check-in',
+        CVV: '123',
+        ctaDest: 'CUENTA-CRUCERO',
+        Monto: monto
+      })
     });
 
-    if (result.success === false) {
-      const error = new Error('Payment declined');
+    if (result?.success === false || result?.status === 'DECLINED') {
+      const error = new Error(result?.message || 'Pago rechazado por el banco');
       error.code = 'ERR_PAYMENT_PENDING';
       error.statusCode = 402;
       throw error;
     }
   } catch (err) {
-    if (err.code === 'ERR_PAYMENT_PENDING' || err.isBusinessRejection) {
+    if (err.code === 'ERR_PAYMENT_PENDING' || err.isBusinessRejection || err.statusCode === 402) {
       throw err;
     }
     console.warn(`[FALLBACK BANCO] Banco caído (${err.message}). Registrando cobro como PENDIENTE.`);
     isBankOffline = true;
-    result = {
-      fallback: true,
-      status: 'PENDIENTE_BANCO',
-      reason: err.message
-    };
+    result = { fallback: true, status: 'PENDIENTE_BANCO', reason: err.message };
   }
 
   const estadoDeposito = isBankOffline ? 'Pendiente' : 'Aprobado';
   const folio = isBankOffline
     ? `PEND-${Date.now()}`.slice(0, 30)
-    : String(result.transactionId || result.noTr || `FOL-${Date.now()}`).slice(0, 30);
+    : String(result?.transactionId || result?.noTr || `FOL-${Date.now()}`).slice(0, 30);
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const ctaRes = await client.query('SELECT id_cuenta FROM cuenta WHERE id_registro = $1 LIMIT 1', [idRegistro]);
+
+    const ctaRes = await client.query(
+      'SELECT id_cuenta FROM cuenta WHERE id_registro = $1 LIMIT 1',
+      [idRegistro]
+    );
     const idCuenta = ctaRes.rows[0]?.id_cuenta || (
-      await client.query("INSERT INTO cuenta (id_registro, estado) VALUES ($1, 'Abierta') RETURNING id_cuenta", [idRegistro])
+      await client.query(
+        "INSERT INTO cuenta (id_registro, estado) VALUES ($1, 'Abierta') RETURNING id_cuenta",
+        [idRegistro]
+      )
     ).rows[0].id_cuenta;
 
     const cargoRes = await client.query(
-      `INSERT INTO cargo (id_cuenta, descripcion, monto)
-       VALUES ($1, 'Pago Check-in', $2)
-       RETURNING id_cargo`,
-      [idCuenta, amount]
+      `INSERT INTO cargo (id_cuenta, descripcion, monto) VALUES ($1, 'Pago Check-in', $2) RETURNING id_cargo`,
+      [idCuenta, monto]
     );
-
     const cobroRes = await client.query(
-      `INSERT INTO cobro (id_cargo, forma_pago, ultimos4, monto)
-       VALUES ($1, 'Tarjeta', $2, $3)
-       RETURNING id_cobro`,
-      [cargoRes.rows[0].id_cargo, String(documentNumber).slice(-4), amount]
+      `INSERT INTO cobro (id_cargo, forma_pago, ultimos4, monto) VALUES ($1, 'Tarjeta', $2, $3) RETURNING id_cobro`,
+      [cargoRes.rows[0].id_cargo, ultimos4, monto]
     );
-
     await client.query(
       `INSERT INTO deposito (id_cobro, monto, estado, folio_confirmacion, fecha_respuesta, payload_externo)
        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5)`,
-      [cobroRes.rows[0].id_cobro, amount, estadoDeposito, folio, JSON.stringify(result)]
+      [cobroRes.rows[0].id_cobro, monto, estadoDeposito, folio, JSON.stringify(result)]
     );
-
     await client.query(
-      `INSERT INTO comprobante (id_cuenta, monto_cobrado, folio_deposito)
-       VALUES ($1, $2, $3)`,
-      [idCuenta, isBankOffline ? 0 : amount, folio]
+      `INSERT INTO comprobante (id_cuenta, monto_cobrado, folio_deposito) VALUES ($1, $2, $3)`,
+      [idCuenta, isBankOffline ? 0 : monto, folio]
     );
 
     await client.query('COMMIT');
@@ -352,9 +369,7 @@ export const processPayment = async (data) => {
   }
 
   return {
-    message: isBankOffline
-      ? 'Banco no disponible: cobro registrado como PENDIENTE en la cuenta del pasajero.'
-      : 'Payment processed successfully',
+    message: isBankOffline ? 'Banco no disponible: cobro registrado como PENDIENTE.' : 'Payment processed successfully',
     paymentStatus: estadoDeposito,
     fallbackMode: isBankOffline,
     folio,
@@ -392,6 +407,7 @@ export const assignCabin = async (data) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
     const cabRes = await client.query(
       `INSERT INTO Cabina (num_cabina, estado, payload_externo)
        VALUES ($1, 'Ocupada', $2)
@@ -406,7 +422,6 @@ export const assignCabin = async (data) => {
        VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`,
       [idRegistro, idCabina, isCabinServiceOffline ? 'Pendiente Sync' : 'Asignada']
     );
-
     await client.query(
       `UPDATE Registro_checkin SET id_cabina = $1, estado = 'En proceso' WHERE id_registro = $2`,
       [idCabina, idRegistro]
@@ -438,19 +453,34 @@ export const getCabins = async () => {
 export const generateQR = async (checkInId) => {
   const idRegistro = Number(checkInId);
   const checkInResult = await pool.query(
-    `SELECT rc.estado, rc.qr_payload, r.num_reservacion, p.nombre_completo, c.num_cabina,
-            (SELECT pe.descripcion
-             FROM Envio_equipaje ee
-             JOIN Pieza_equipaje pe ON ee.id_envio = pe.id_envio
-             WHERE ee.id_registro = rc.id_registro
-             LIMIT 1) AS tipo_equipaje
-     FROM Registro_checkin rc
-     LEFT JOIN Reservacion r ON rc.id_reservacion = r.id_reservacion
-     LEFT JOIN Pasajero p ON r.id_pasajero = p.id_pasajero
-     LEFT JOIN Cabina c ON rc.id_cabina = c.id_cabina
-     WHERE rc.id_registro = $1`,
-    [idRegistro]
-  );
+  `SELECT
+     rc.estado,
+     rc.qr_payload,
+     r.num_reservacion,
+     p.nombre_completo,
+     COALESCE(
+       c.num_cabina,
+       rcab.num_cabina,
+       (SELECT cab.num_cabina
+        FROM Solicitud_cabina sc
+        JOIN Cabina cab ON sc.id_cabina = cab.id_cabina
+        WHERE sc.id_registro = rc.id_registro
+        ORDER BY sc.id_solicitud DESC
+        LIMIT 1)
+     ) AS num_cabina,
+     (SELECT pe.descripcion
+      FROM Envio_equipaje ee
+      JOIN Pieza_equipaje pe ON ee.id_envio = pe.id_envio
+      WHERE ee.id_registro = rc.id_registro
+      LIMIT 1) AS tipo_equipaje
+   FROM Registro_checkin rc
+   LEFT JOIN Reservacion r ON rc.id_reservacion = r.id_reservacion
+   LEFT JOIN Pasajero p ON r.id_pasajero = p.id_pasajero
+   LEFT JOIN Cabina c ON rc.id_cabina = c.id_cabina
+   LEFT JOIN Cabina rcab ON r.id_cabina = rcab.id_cabina
+   WHERE rc.id_registro = $1`,
+  [idRegistro]
+);
 
   if (checkInResult.rows.length === 0) {
     const e = new Error('Check-in not found');
@@ -468,6 +498,7 @@ export const generateQR = async (checkInId) => {
     : defaultBaseUrl;
   const payload = `${baseUrl}/api/check-in/boarding-pass/${idRegistro}`;
   const qrBase64 = await QRCode.toDataURL(payload);
+
   await pool.query('UPDATE Registro_checkin SET qr_payload = $1 WHERE id_registro = $2', [qrBase64, idRegistro]);
 
   const datosPasajero = {
@@ -503,8 +534,8 @@ export const generateQR = async (checkInId) => {
 export const registerLuggage = async (data) => {
   const { checkInId, bagCount, totalWeightKg, isVip } = data;
   const idRegistro = Number(checkInId);
-
   let extraFee = 0;
+
   if (!isVip) {
     const extraBags = Math.max(0, bagCount - 1);
     const extraWeight = Math.max(0, totalWeightKg - 20);
@@ -521,6 +552,7 @@ export const registerLuggage = async (data) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
     const regRes = await client.query('SELECT id_cabina FROM Registro_checkin WHERE id_registro = $1', [idRegistro]);
     if (regRes.rows.length === 0) {
       const e = new Error('Check-in not found');
@@ -531,17 +563,14 @@ export const registerLuggage = async (data) => {
 
     const idCabina = regRes.rows[0].id_cabina;
     const envRes = await client.query(
-      `INSERT INTO Envio_equipaje (id_registro, id_cabina, estado)
-       VALUES ($1, $2, 'Enviado')
-       RETURNING id_envio`,
+      `INSERT INTO Envio_equipaje (id_registro, id_cabina, estado) VALUES ($1, $2, 'Enviado') RETURNING id_envio`,
       [idRegistro, idCabina]
     );
     const idEnvio = envRes.rows[0].id_envio;
 
     for (let i = 1; i <= Math.max(1, bagCount); i++) {
       await client.query(
-        `INSERT INTO Pieza_equipaje (id_envio, etiqueta, descripcion, estado)
-         VALUES ($1, $2, $3, 'Registrada')`,
+        `INSERT INTO Pieza_equipaje (id_envio, etiqueta, descripcion, estado) VALUES ($1, $2, $3, 'Registrada')`,
         [idEnvio, `TAG-${idRegistro}-${i}`, `Maleta ${i} (${totalWeightKg} kg total)`]
       );
     }
@@ -559,18 +588,24 @@ export const registerLuggage = async (data) => {
 // 8. CHECK-OUT (ST08 - ST12) CON TOLERANCIA A FALLOS EN CABINAS Y BANCO
 export const processCheckout = async (checkInId, documentNumber) => {
   const idRegistro = Number(checkInId);
+  const docLimpio = String(documentNumber || '0000').trim();
+  const ultimos4 = docLimpio.slice(-4).padStart(4, '0');
+
   const result = await pool.query(
-    `SELECT rc.id_cabina, c.num_cabina
+    `SELECT
+       COALESCE(rc.id_cabina, r.id_cabina) AS id_cabina,
+       c.num_cabina
      FROM Registro_checkin rc
-     JOIN Cabina c ON rc.id_cabina = c.id_cabina
+     LEFT JOIN Reservacion r ON rc.id_reservacion = r.id_reservacion
+     LEFT JOIN Cabina c ON COALESCE(rc.id_cabina, r.id_cabina) = c.id_cabina
      WHERE rc.id_registro = $1`,
     [idRegistro]
   );
 
   if (result.rows.length === 0) {
-    const e = new Error('Check-in or cabin not found');
-    e.code = 'ERR_NO_CABIN';
-    e.statusCode = 400;
+    const e = new Error('Check-in not found');
+    e.code = 'ERR_NOT_FOUND';
+    e.statusCode = 404;
     throw e;
   }
 
@@ -580,21 +615,32 @@ export const processCheckout = async (checkInId, documentNumber) => {
 
   let cabinReport;
   let cabinOffline = false;
-  try {
-    cabinReport = await fetchExternalService(`${targetCabinCheckoutUrl}/${encodeURIComponent(numCabina)}`);
-  } catch (err) {
-    console.warn(`[FALLBACK CHECKOUT CABINAS] Cabinas no disponible (${err.message}). Inspección marcada pendiente.`);
-    cabinOffline = true;
+
+  if (numCabina) {
+    try {
+      cabinReport = await fetchExternalService(`${targetCabinCheckoutUrl}/${encodeURIComponent(numCabina)}`);
+    } catch (err) {
+      console.warn(`[FALLBACK CHECKOUT CABINAS] Cabinas no disponible (${err.message}). Inspección marcada pendiente.`);
+      cabinOffline = true;
+      cabinReport = {
+        hasCharges: false,
+        amount: 0,
+        encargado: 'Contingencia Check-out',
+        reason: 'Microservicio Cabinas no disponible al momento del Check-out (Pendiente verificación)'
+      };
+    }
+  } else {
     cabinReport = {
       hasCharges: false,
       amount: 0,
-      encargado: 'Contingencia Check-out',
-      reason: 'Microservicio Cabinas no disponible al momento del Check-out (Pendiente verificación)'
+      encargado: 'Sin cabina asignada',
+      reason: 'Check-out sin cabina vinculada'
     };
   }
 
   const hasCharges = Boolean(cabinReport.hasCharges && cabinReport.amount > 0);
   const client = await pool.connect();
+
   let chargeMessage = cabinOffline
     ? 'Check-out completado (inspección de Cabinas pendiente de sincronización).'
     : 'Check-out successful. No extra charges.';
@@ -602,13 +648,14 @@ export const processCheckout = async (checkInId, documentNumber) => {
 
   try {
     await client.query('BEGIN');
+
     const repRes = await client.query(
       `INSERT INTO reporte_estado (id_registro, id_cabina, encargado, existen_danos, descripcion, payload_externo)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id_report_estado`,
       [
         idRegistro,
-        idCabina,
+        idCabina || null,
         (cabinReport.encargado || 'Inspección Cabinas').slice(0, 100),
         hasCharges,
         (cabinReport.reason || cabinReport.descripcion || 'Sin novedades').slice(0, 250),
@@ -625,19 +672,27 @@ export const processCheckout = async (checkInId, documentNumber) => {
     if (hasCharges) {
       let bankResult;
       let bankOffline = false;
+
       try {
         bankResult = await fetchExternalService(targetBankUrl, {
           method: 'POST',
-          body: JSON.stringify({ amount: cabinReport.amount, document: documentNumber })
+          body: JSON.stringify({
+            numTarjeta: docLimpio,
+            nomCompleto: 'Pasajero Check-out',
+            CVV: '123',
+            ctaDest: 'CUENTA-CRUCERO',
+            Monto: Number(cabinReport.amount)
+          })
         });
-        if (bankResult.success === false) {
-          const e = new Error('Extra charges declined');
+
+        if (bankResult?.success === false || bankResult?.status === 'DECLINED') {
+          const e = new Error(bankResult?.message || 'Extra charges declined');
           e.code = 'ERR_PAYMENT_PENDING';
           e.statusCode = 402;
           throw e;
         }
       } catch (bankErr) {
-        if (bankErr.code === 'ERR_PAYMENT_PENDING' || bankErr.isBusinessRejection) {
+        if (bankErr.code === 'ERR_PAYMENT_PENDING' || bankErr.isBusinessRejection || bankErr.statusCode === 402) {
           throw bankErr;
         }
         console.warn(`[FALLBACK CHECKOUT BANCO] Banco caído (${bankErr.message}). Dejando cobro de $${cabinReport.amount} PENDIENTE.`);
@@ -649,7 +704,7 @@ export const processCheckout = async (checkInId, documentNumber) => {
       const estadoDeposito = bankOffline ? 'Pendiente' : 'Aprobado';
       const folio = bankOffline
         ? `PEND-${Date.now()}`.slice(0, 30)
-        : String(bankResult.transactionId || bankResult.noTr || `FOL-${Date.now()}`).slice(0, 30);
+        : String(bankResult?.transactionId || bankResult?.noTr || `FOL-${Date.now()}`).slice(0, 30);
 
       const cargoRes = await client.query(
         `INSERT INTO cargo (id_cuenta, id_report_estado, descripcion, monto)
@@ -657,28 +712,24 @@ export const processCheckout = async (checkInId, documentNumber) => {
          RETURNING id_cargo`,
         [idCuenta, idReportEstado, (cabinReport.reason || 'Cargo Check-out').slice(0, 250), cabinReport.amount]
       );
-
       const cobroRes = await client.query(
         `INSERT INTO cobro (id_cargo, forma_pago, ultimos4, monto)
          VALUES ($1, 'Tarjeta', $2, $3)
          RETURNING id_cobro`,
-        [cargoRes.rows[0].id_cargo, String(documentNumber).slice(-4), cabinReport.amount]
+        [cargoRes.rows[0].id_cargo, ultimos4, cabinReport.amount]
       );
-
       await client.query(
         `INSERT INTO deposito (id_cobro, monto, estado, folio_confirmacion, fecha_respuesta, payload_externo)
          VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5)`,
         [cobroRes.rows[0].id_cobro, cabinReport.amount, estadoDeposito, folio, JSON.stringify(bankResult)]
       );
-
       await client.query(
-        `INSERT INTO comprobante (id_cuenta, monto_cobrado, folio_deposito)
-         VALUES ($1, $2, $3)`,
+        `INSERT INTO comprobante (id_cuenta, monto_cobrado, folio_deposito) VALUES ($1, $2, $3)`,
         [idCuenta, bankOffline ? 0 : cabinReport.amount, folio]
       );
 
       chargeMessage = bankOffline
-        ? `Check-out registrado con COBRO PENDIENTE de $${cabinReport.amount} (Banco no disponible: ${cabinReport.reason}).`
+        ? `Check-out registrado con COBRO PENDIENTE de $${cabinReport.amount} (Banco no disponible: ${bankReport.reason}).`
         : `Check-out successful. Extra charge of $${cabinReport.amount} processed for: ${cabinReport.reason}`;
     }
 
@@ -687,7 +738,9 @@ export const processCheckout = async (checkInId, documentNumber) => {
       `UPDATE cuenta SET estado = $1, fecha_cierre = CURRENT_TIMESTAMP WHERE id_cuenta = $2`,
       [estadoCuentaFinal, idCuenta]
     );
-    await client.query("UPDATE Cabina SET estado = 'Disponible' WHERE id_cabina = $1", [idCabina]);
+    if (idCabina) {
+      await client.query("UPDATE Cabina SET estado = 'Disponible' WHERE id_cabina = $1", [idCabina]);
+    }
     await client.query("UPDATE Registro_checkin SET estado = 'Completado' WHERE id_registro = $1", [idRegistro]);
 
     await client.query('COMMIT');
@@ -703,7 +756,12 @@ export const processCheckout = async (checkInId, documentNumber) => {
 // 9. PASE DE ABORDAR
 export const getBoardingPassData = async (checkInId) => {
   const res = await pool.query(
-    `SELECT rc.id_registro AS id, rc.estado AS status, p.nombre_completo, c.num_cabina AS cabin_number, r.num_reservacion AS group_code
+    `SELECT
+       rc.id_registro AS id,
+       rc.estado AS status,
+       p.nombre_completo,
+       c.num_cabina AS cabin_number,
+       r.num_reservacion AS group_code
      FROM Registro_checkin rc
      JOIN Reservacion r ON rc.id_reservacion = r.id_reservacion
      JOIN Pasajero p ON r.id_pasajero = p.id_pasajero
@@ -714,3 +772,5 @@ export const getBoardingPassData = async (checkInId) => {
   if (res.rows.length === 0) return null;
   return res.rows[0];
 };
+
+

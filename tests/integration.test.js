@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+﻿import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
 import app from '../src/app.js';
 import { pool } from '../src/db/client.js';
@@ -24,7 +24,7 @@ describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales + Fallback)', ()
           ]
         });
       }
-      if (sql.includes('FROM Reservacion r')) {
+      if (sql.includes('FROM Reservacion r') && !sql.includes('SELECT rc.estado')) {
         if (Array.isArray(params) && params.includes('RSV-FAM-01')) {
           return Promise.resolve({
             rows: [{ id_reservacion: 10, num_reservacion: 'RSV-FAM-01', id_cabina: 5, nombre_completo: 'Carlos Ruiz', fecha_nacimiento: '1988-04-12' }]
@@ -32,7 +32,7 @@ describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales + Fallback)', ()
         }
         return Promise.resolve({ rows: [] });
       }
-      if (sql.includes('SELECT rc.estado, rc.qr_payload')) {
+      if (sql.includes('FROM Registro_checkin rc') && sql.includes('LEFT JOIN Cabina c')) {
         return Promise.resolve({
           rows: [{
             estado: 'En proceso',
@@ -186,3 +186,5 @@ describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales + Fallback)', ()
     expect(res.body.data.message).toContain('PENDIENTE');
   });
 });
+
+

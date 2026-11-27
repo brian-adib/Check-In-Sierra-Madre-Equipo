@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sierra Madre · Terminal Marítima</title>
 <link rel="icon" type="image/png" href="/favicon.png">
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Newsreader:wght@600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
 <style>
 /* ================= VARIABLES Y BASE ================= */
 :root {
@@ -69,7 +69,7 @@ body.dark .sidebar { background: #0c1a19; border-right: 1px solid var(--line); }
 
 /* ================= MAIN & HEADER ================= */
 .main-content { flex: 1; padding: 32px; max-width: 1400px; margin: 0 auto; width: 100%; overflow-y: auto; height: 100dvh; }
-header.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+header.page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; border-bottom: 1px solid var(--line); padding-bottom: 16px; gap: 16px; flex-wrap: wrap; }
 .header-stats { display: flex; gap: 20px; align-items: center; }
 .stat-pill { background: var(--card); border: 1px solid var(--line); padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
 .clock { font: 600 22px 'Newsreader', serif; font-variant-numeric: tabular-nums; }
@@ -84,6 +84,12 @@ header.page-header { display: flex; justify-content: space-between; align-items:
 
 /* ================= WIZARD LAYOUT ================= */
 .wizard-layout { display: grid; grid-template-columns: 1fr 300px; gap: 24px; align-items: start; }
+@media (max-width: 900px) {
+  body { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; position: static; }
+  .main-content { height: auto; padding: 20px; }
+  .wizard-layout { grid-template-columns: 1fr; }
+}
 .steps { display: flex; gap: 0; margin-bottom: 24px; overflow-x: auto; background: var(--card); border-radius: var(--r); border: 1px solid var(--line); padding: 10px 10px 0; }
 .steps li { list-style: none; flex: 1; min-width: 90px; padding: 0 0 12px; border-bottom: 3px solid var(--line); font-size: 12px; font-weight: 600; color: var(--mut); text-align: center; transition: 0.2s; }
 .steps li.done { border-color: var(--sea2); color: var(--ink); }
@@ -98,17 +104,18 @@ header.page-header { display: flex; justify-content: space-between; align-items:
 .ticket-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
 .ticket-item label { display: block; font-size: 10px; text-transform: uppercase; color: var(--mut); font-weight: 700; letter-spacing: 1px; margin-bottom: 4px; }
 .ticket-item div { font-size: 16px; font-weight: 600; color: var(--ink); font-family: 'JetBrains Mono', monospace; }
-.ticket-qr { display: flex; justify-content: center; align-items: center; padding: 20px 0; border-top: 2px dashed var(--line); border-bottom: 2px dashed var(--line); margin-bottom: 20px; min-height: 190px; }
+.ticket-qr { display: flex; justify-content: center; align-items: center; padding: 20px 0; border-top: 2px dashed var(--line); border-bottom: 2px dashed var(--line); margin-bottom: 20px; min-height: 190px; flex-direction: column; gap: 8px; }
 .ticket-footer { text-align: center; font-size: 12px; color: var(--mut); }
 
 /* ================= LOG PANEL ================= */
-.mock-panel { position: fixed; bottom: 75px; right: 20px; width: 380px; max-height: 400px; background: #051510; color: #fff; border-radius: 10px; padding: 16px; font-family: 'Courier New', monospace; font-size: 11px; overflow-y: auto; z-index: 9999; border: 1px solid var(--brass); display: none; }
+.mock-panel { position: fixed; bottom: 75px; right: 20px; width: 380px; max-width: calc(100vw - 40px); max-height: 400px; background: #051510; color: #fff; border-radius: 10px; padding: 16px; font-family: 'Courier New', monospace; font-size: 11px; overflow-y: auto; z-index: 9999; border: 1px solid var(--brass); display: none; }
 .mock-panel.active { display: block; }
 .toggle-mock { position: fixed; bottom: 20px; right: 20px; background: #051510; color: var(--brass); border-radius: 50px; padding: 10px 18px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; z-index: 9998; border: 1px solid var(--brass); }
 .log-item { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
 .log-item .hora { color: #6b7280; margin-right: 6px; }
 .log-item .servicio { color: var(--brass); font-weight: bold; }
 .log-item .ok { color: #86efac; } .log-item .err { color: #fca5a5; } .log-item .warn { color: #fcd34d; }
+
 #toast { position: fixed; top: 20px; right: 20px; z-index: 99999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
 #toast div { background: var(--card); border-left: 4px solid var(--ok); color: var(--ink); padding: 12px 18px; border-radius: 8px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.15); animation: slideIn 0.3s ease; }
 #toast div.err { border-left-color: var(--err); }
@@ -122,6 +129,7 @@ header.page-header { display: flex; justify-content: space-between; align-items:
 .opt:disabled { opacity: .45; cursor: not-allowed; }
 .spinner { border: 3px solid var(--line); border-top-color: var(--sea); border-radius: 50%; width: 30px; height: 30px; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
 @media print {
   body * { visibility: hidden; }
   .ticket-container, .ticket-container * { visibility: visible; }
@@ -139,43 +147,46 @@ header.page-header { display: flex; justify-content: space-between; align-items:
     <h1>Sierra Madre</h1>
     <p>Resort &amp; Casino</p>
   </div>
+
   <div class="role-switch">
-    <button class="role-btn active" id="btn-rol-recepcion" onclick="cambiarRol('recepcion')">Recepción</button>
-    <button class="role-btn" id="btn-rol-gerente" onclick="cambiarRol('gerente')">Gerente</button>
+    <button id="btn-rol-recepcion" class="role-btn active" onclick="cambiarRol('recepcion')">Recepción</button>
+    <button id="btn-rol-gerente" class="role-btn" onclick="cambiarRol('gerente')">Gerente</button>
   </div>
-  <nav class="sidebar-nav" id="sidebar-nav"></nav>
+
+  <nav id="sidebar-nav" class="sidebar-nav"></nav>
+
   <div class="sidebar-foot">
-    <button class="btn ghost sm" style="color:#fff; border-color:rgba(255,255,255,0.2);" onclick="document.body.classList.toggle('dark')">Tema</button>
+    <button class="btn ghost sm" style="color:#fff; border-color:rgba(255,255,255,0.2);" onclick="toggleTema()">Tema</button>
   </div>
 </aside>
 
 <main class="main-content">
   <header class="page-header">
     <div>
-      <h1 id="page-title">Recepción</h1>
-      <p class="mut">Gestiona el check-in y check-out de pasajeros.</p>
+      <h1 id="page-title">Dashboard de Recepción</h1>
+      <p id="page-subtitle" class="mut">Gestiona el check-in y check-out de pasajeros.</p>
     </div>
     <div class="header-stats">
       <div class="stat-pill"><span style="color:var(--ok);">●</span> Servicio Activo</div>
       <div class="stat-pill">Equipo 11</div>
-      <div class="clock" id="clock">--:--:--</div>
+      <div id="clock" class="clock">--:--:--</div>
     </div>
   </header>
+
   <div id="view"></div>
 </main>
 
-<div id="toast"></div>
+<button class="toggle-mock" onclick="$('#mock-panel').classList.toggle('active')">Tráfico microservicios</button>
 
-<button class="toggle-mock" onclick="document.getElementById('mock-panel').classList.toggle('active')">
-  Tráfico microservicios
-</button>
-<div class="mock-panel" id="mock-panel">
-  <div class="row sp" style="margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:6px;">
-    <strong>Log de Microservicios</strong>
-    <button class="btn sm ghost" style="color:#fff; padding:2px 8px; min-height:24px;" onclick="document.getElementById('mock-panel').classList.remove('active')">Cerrar ×</button>
+<div id="mock-panel" class="mock-panel">
+  <div class="row sp" style="margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.15); padding-bottom:6px;">
+    <b>Log de Microservicios</b>
+    <button class="btn sm ghost" style="color:#fff; border-color:rgba(255,255,255,0.2); min-height:24px; padding:2px 8px;" onclick="$('#mock-panel').classList.remove('active')">Cerrar ×</button>
   </div>
   <div id="mock-log"></div>
 </div>
+
+<div id="toast"></div>
 
 <script>
 /* ================= ESTADO ================= */
@@ -185,23 +196,32 @@ let W = null;
 let S = { excepciones: [] };
 let currentCheckInId = null;
 let CABS = [];
+let RESERVACIONES_CACHE = [];
 
 /* Utils */
 const $ = s => document.querySelector(s);
-const logTrace = (serv, msg, type="INFO") => {
+
+const logTrace = (serv, msg, type = "INFO") => {
   const log = $("#mock-log");
+  if (!log) return;
   const time = new Date().toLocaleTimeString();
   const cl = type === "ERROR" ? "err" : (type === "WARN" ? "warn" : (type.includes("OK") ? "ok" : ""));
   log.innerHTML += `<div class="log-item"><span class="hora">${time}</span><span class="servicio">[${type} ${serv}]</span> <span class="${cl}">${msg}</span></div>`;
   log.scrollTop = log.scrollHeight;
 };
-const toast = (m, type="ok") => {
-  const d = document.createElement("div"); d.textContent = m;
-  if(type==="err") d.className="err";
-  else if(type==="warn") d.className="warn";
+
+const toast = (m, type = "ok") => {
+  const d = document.createElement("div");
+  d.textContent = m;
+  if (type === "err") d.className = "err";
+  else if (type === "warn") d.className = "warn";
   $("#toast").append(d);
-  setTimeout(()=>d.remove(), 3500);
+  setTimeout(() => d.remove(), 3500);
 };
+
+function toggleTema() {
+  document.body.classList.toggle('dark');
+}
 
 /* ================= NAVEGACIÓN ================= */
 function cambiarRol(rol) {
@@ -209,10 +229,17 @@ function cambiarRol(rol) {
   $("#btn-rol-recepcion").classList.toggle('active', rol === 'recepcion');
   $("#btn-rol-gerente").classList.toggle('active', rol === 'gerente');
   if (rol === 'recepcion') {
-    $("#sidebar-nav").innerHTML = `<div class="nav-item active" onclick="irVista('inicio')">Iniciar Check-in</div> <div class="nav-item" onclick="irVista('checkout')">Módulo Check-out</div>`;
+    $("#page-subtitle").textContent = "Gestiona el check-in y check-out de pasajeros.";
+    $("#sidebar-nav").innerHTML = `
+      <div class="nav-item active" onclick="irVista('inicio')">Iniciar Check-in</div>
+      <div class="nav-item" onclick="irVista('checkout')">Módulo Check-out</div>
+    `;
     irVista('inicio');
   } else {
-    $("#sidebar-nav").innerHTML = `<div class="nav-item active" onclick="irVista('gerente')">Bandeja de Excepciones</div>`;
+    $("#page-subtitle").textContent = "Autorización de excepciones y supervisión operativa.";
+    $("#sidebar-nav").innerHTML = `
+      <div class="nav-item active" onclick="irVista('gerente')">Bandeja de Excepciones</div>
+    `;
     irVista('gerente');
   }
 }
@@ -220,9 +247,19 @@ function cambiarRol(rol) {
 function irVista(v) {
   vistaActual = v;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  if (v === 'inicio') { $("#page-title").textContent = "Dashboard de Recepción"; renderInicio(); }
-  else if (v === 'checkout') { $("#page-title").textContent = "Módulo Check-out"; renderCheckout(); }
-  else if (v === 'gerente') { $("#page-title").textContent = "Panel del Gerente"; renderGerente(); }
+  if (v === 'inicio') {
+    document.querySelectorAll('.nav-item')[0]?.classList.add('active');
+    $("#page-title").textContent = "Dashboard de Recepción";
+    renderInicio();
+  } else if (v === 'checkout') {
+    document.querySelectorAll('.nav-item')[1]?.classList.add('active');
+    $("#page-title").textContent = "Módulo Check-out";
+    renderCheckout();
+  } else if (v === 'gerente') {
+    document.querySelectorAll('.nav-item')[0]?.classList.add('active');
+    $("#page-title").textContent = "Panel del Gerente";
+    renderGerente();
+  }
 }
 
 /* ================= FLUJO RECEPCIÓN ================= */
@@ -231,25 +268,23 @@ function renderInicio() {
     <div class="stats-grid">
       <div class="stat-card">
         <h4>Reservaciones en Neon</h4>
-        <div class="value" id="stat-reservas">--</div>
+        <div id="stat-reservas" class="value">--</div>
       </div>
       <div class="stat-card ok">
         <h4>Cabinas Disponibles</h4>
-        <div class="value" id="stat-cabinas">--</div>
+        <div id="stat-cabinas" class="value">--</div>
       </div>
       <div class="stat-card warn">
         <h4>Excepciones Pendientes</h4>
-        <div class="value">${S.excepciones.length}</div>
+        <div id="stat-excepciones" class="value">${S.excepciones.length}</div>
       </div>
     </div>
 
     <div class="card">
       <h3>Iniciar Check-in por Código de Reservación (ST01)</h3>
-      <p class="mut">Ingresa la clave de reservación proporcionada por el equipo de Reservaciones o selecciónala de la tabla inferior.</p>
+      <p class="mut mt">Ingresa la clave de reservación proporcionada por el equipo de Reservaciones o selecciónala de la tabla inferior.</p>
       <div class="row mt">
-        <div style="flex:1; min-width:220px;">
-          <input id="group-code-input" placeholder="Ej. RSV-FAM-01" onkeyup="if(event.key==='Enter') buscarEIniciarCheckin()">
-        </div>
+        <input id="group-code-input" type="text" placeholder="Ej. RES-1001" style="max-width:320px;" onkeydown="if(event.key==='Enter') buscarEIniciarCheckin()">
         <button class="btn" onclick="buscarEIniciarCheckin()">Buscar e Iniciar</button>
       </div>
     </div>
@@ -260,7 +295,7 @@ function renderInicio() {
           <h3>Reservaciones Registradas en PostgreSQL (Neon)</h3>
           <p class="mut">Datos recibidos desde el microservicio de Reservaciones mediante el Adaptador Tolerante (ACL).</p>
         </div>
-        <button class="btn sm ghost" onclick="cargarReservacionesNeon()">Actualizar Tabla</button>
+        <button class="btn ghost sm" onclick="cargarReservacionesNeon()">Actualizar Tabla</button>
       </div>
       <div class="scroll mt">
         <table>
@@ -282,16 +317,19 @@ function renderInicio() {
     </div>
   `;
 
-  fetch('/api/check-in/cabins').then(r => r.json()).then(data => {
-    if (data.success && Array.isArray(data.data)) {
-      CABS = data.data.map(c => ({ id: c.id_cabina, num: c.num_cabina, estado: c.estado }));
+  fetch('/api/check-in/cabins')
+    .then(r => r.json())
+    .then(data => {
+      if (data.success && Array.isArray(data.data)) {
+        CABS = data.data.map(c => ({ id: c.id_cabina, num: c.num_cabina, estado: c.estado }));
+        const el = document.getElementById('stat-cabinas');
+        if (el) el.textContent = CABS.filter(c => c.estado === 'Disponible').length;
+      }
+    })
+    .catch(() => {
       const el = document.getElementById('stat-cabinas');
-      if (el) el.textContent = CABS.filter(c => c.estado === 'Disponible').length;
-    }
-  }).catch(() => {
-    const el = document.getElementById('stat-cabinas');
-    if (el) el.textContent = "0";
-  });
+      if (el) el.textContent = "0";
+    });
 
   cargarReservacionesNeon();
 }
@@ -300,10 +338,12 @@ async function cargarReservacionesNeon() {
   const tbody = document.getElementById('tabla-reservaciones-body');
   const statRes = document.getElementById('stat-reservas');
   if (!tbody) return;
+
   try {
     const res = await fetch('/api/check-in/reservations');
     const data = await res.json();
     if (data.success && Array.isArray(data.data)) {
+      RESERVACIONES_CACHE = data.data;
       if (statRes) statRes.textContent = data.data.length;
       if (data.data.length === 0) {
         tbody.innerHTML = `<tr><td colspan="6" class="mut">No hay reservaciones registradas todavía en Neon.</td></tr>`;
@@ -315,7 +355,7 @@ async function cargarReservacionesNeon() {
         const btnLabel = r.id_checkin ? `Continuar (#${r.id_checkin})` : 'Iniciar Check-in';
         return `
           <tr>
-            <td><strong>${r.num_reservacion}</strong></td>
+            <td><b>${r.num_reservacion}</b></td>
             <td>${r.nombre_completo}</td>
             <td>${r.num_cabina || 'PENDIENTE'}</td>
             <td>${r.fecha_embarque ? String(r.fecha_embarque).slice(0, 10) : '--'}</td>
@@ -342,18 +382,33 @@ function iniciarDesdeTabla(numReservacion) {
 async function buscarEIniciarCheckin() {
   const code = document.getElementById('group-code-input').value.trim().toUpperCase();
   if (!code) return toast("Ingresa un código de reservación", "warn");
+
   logTrace("ST01", `POST /api/check-in/initiate (${code})`, "INFO");
   try {
     const res = await fetch('/api/check-in/initiate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ groupCode: code })
     });
     const data = await res.json();
+
     if (data.success) {
       const ids = Array.isArray(data.data.checkInIds) ? data.data.checkInIds : [data.data.checkInIds];
       currentCheckInId = Number(ids[0]);
+      const match = RESERVACIONES_CACHE.find(r => r.num_reservacion === code || r.num_reservacion.startsWith(code + '-'));
       logTrace("ST01", `201 Created · Reserva ${code} iniciada (ID activo: ${currentCheckInId})`, "OK");
-      W = { id: code, checkInIds: ids, step: 1, cab: null, mal: {n:1, kg:20}, docsValidos: false, cabinInputId: '' };
+
+      W = {
+        id: code,
+        checkInIds: ids,
+        step: 1,
+        nombre: match?.nombre_completo || 'Pasajero registrado en sistema',
+        documento: match?.nacionalidad ? `Verificado (${match.nacionalidad})` : 'Verificado en recepción',
+        cab: match?.num_cabina && match.num_cabina !== 'PENDIENTE' ? { id: match.num_cabina } : null,
+        mal: { n: 1, kg: 20 },
+        docsValidos: false,
+        cabinInputId: match?.num_cabina && match.num_cabina !== 'PENDIENTE' ? match.num_cabina : ''
+      };
       renderWizard();
     } else {
       toast(data.error?.message || "Reservación no encontrada", "err");
@@ -372,39 +427,50 @@ async function renderWizard() {
 
   $("#view").innerHTML = `
     <ul class="steps">
-      ${steps.map((s,i) => `<li class="${i+1<W.step?"done":i+1===W.step?"cur":""}">${i+1}. ${s}</li>`).join("")}
+      ${steps.map((s, i) => `<li class="${i + 1 < W.step ? 'done' : i + 1 === W.step ? 'cur' : ''}">${i + 1}. ${s}</li>`).join("")}
     </ul>
+
     <div class="wizard-layout">
       <div id="wizard-body"></div>
-      <div class="summary-panel">
+
+      <aside class="summary-panel">
         <h3>Resumen del Proceso</h3>
         <div class="mt">
           <label>Código de Reservación</label>
-          <div><strong>${W.id}</strong></div>
+          <div><b>${W.id}</b></div>
         </div>
         <div class="mt">
           <label>Check-in ID Activo (SERIAL)</label>
-          <div><strong>#${currentCheckInId}</strong></div>
+          <div><b>#${currentCheckInId}</b></div>
+        </div>
+        <div class="mt">
+          <label>Pasajero</label>
+          <div>${W.nombre}</div>
         </div>
         <div class="mt">
           <label>Cabina Asignada</label>
-          <div id="summary-cabin" style="color:${cabinColor}; font-weight:600;">${cabinText}</div>
+          <div id="summary-cabin" style="font-weight:700; color:${cabinColor};">${cabinText}</div>
         </div>
-      </div>
+        <div class="mt">
+          <button class="btn ghost sm" style="width:100%;" onclick="generarFR011()">Exportar Formato FR011</button>
+        </div>
+      </aside>
     </div>
   `;
 
   const body = $("#wizard-body");
+
   if (W.step === 1) {
     body.innerHTML = `
       <div class="card">
         <h3>Paso 1: Confirmar con Microservicio de Reservaciones (ST05)</h3>
-        <p class="mut">Envía la solicitud de validación al equipo de Reservaciones para obtener visto bueno.</p>
-        <div class="mt">
-          <button class="btn sm warn" onclick="documentoInvalido()">Reportar Documento Inválido (ST03)</button>
+        <p class="mut mt">Envía la solicitud de validación al equipo de Reservaciones para obtener visto bueno.</p>
+        <div class="row mt">
+          <button class="btn warn sm" onclick="documentoInvalido()">Reportar Documento Inválido (ST03)</button>
+          <button class="btn ghost sm" onclick="generarFR011()">Exportar Formato FR011</button>
         </div>
         <div class="row sp mt">
-          <button class="btn ghost" onclick="irVista('inicio')">Cancelar</button>
+          <button class="btn ghost" onclick="W = null; renderInicio()">Cancelar</button>
           <button class="btn" onclick="enviarAReservaciones()">Enviar a Reservaciones (ST05)</button>
         </div>
       </div>
@@ -413,17 +479,17 @@ async function renderWizard() {
     body.innerHTML = `
       <div class="card">
         <h3>Paso 2: Consultar y Asignar Cabina (ST06)</h3>
-        <p class="mut">Ingresa el número de cabina proporcionado por el equipo de Cabinas para verificar disponibilidad y asignarla.</p>
+        <p class="mut mt">Ingresa el número de cabina proporcionado por el equipo de Cabinas para verificar disponibilidad y asignarla.</p>
         <div class="mt">
-          <label>Número de Cabina (Microservicio Cabinas)</label>
-          <input id="cabin-id-input" value="${W.cabinInputId || ''}" placeholder="Ej. C-104">
-          <div id="tarjeta-msg" class="note ok" style="display:${W.cab ? 'block' : 'none'};">Cabina confirmada por el microservicio externo y asignada.</div>
+          <label for="cabin-id-input">Número de Cabina (Microservicio Cabinas)</label>
+          <input id="cabin-id-input" type="text" value="${W.cabinInputId || ''}" placeholder="Ej. CAB-101">
         </div>
+        <div id="tarjeta-msg" class="note ok" style="display:${W.cab ? 'block' : 'none'};">Cabina confirmada y asignada al registro.</div>
         <div class="row sp mt">
-          <button class="btn ghost" onclick="W.step=1; renderWizard()">Atrás</button>
+          <button class="btn ghost" onclick="W.step = 1; renderWizard()">Atrás</button>
           <div class="row">
             <button class="btn ghost" onclick="asignarCabinaReal()">Verificar y Asignar Cabina</button>
-            <button class="btn" id="btn-next-cab" ${W.cab ? '' : 'disabled'} onclick="W.step=3; renderWizard()">Siguiente: Equipaje</button>
+            <button class="btn" id="btn-next-cab" ${W.cab ? '' : 'disabled'} onclick="W.step = 3; renderWizard()">Siguiente: Equipaje</button>
           </div>
         </div>
       </div>
@@ -432,19 +498,19 @@ async function renderWizard() {
     body.innerHTML = `
       <div class="card">
         <h3>Paso 3: Registro de Equipaje (ST07)</h3>
-        <p class="mut">Registra las piezas y el peso total del pasajero.</p>
+        <p class="mut mt">Registra las piezas y el peso total del pasajero.</p>
         <div class="grid mt">
           <div>
-            <label>Piezas Totales</label>
-            <input type="number" id="eq-n" value="${W.mal.n}" min="0">
+            <label for="eq-n">Piezas Totales</label>
+            <input id="eq-n" type="number" min="1" value="${W.mal.n}">
           </div>
           <div>
-            <label>Peso Total (kg)</label>
-            <input type="number" id="eq-kg" value="${W.mal.kg}" min="0">
+            <label for="eq-kg">Peso Total (kg)</label>
+            <input id="eq-kg" type="number" min="1" value="${W.mal.kg}">
           </div>
         </div>
         <div class="row sp mt">
-          <button class="btn ghost" onclick="W.step=2; renderWizard()">Atrás</button>
+          <button class="btn ghost" onclick="W.step = 2; renderWizard()">Atrás</button>
           <button class="btn" onclick="enviarEquipaje()">Registrar Equipaje y Generar Pase</button>
         </div>
       </div>
@@ -452,44 +518,35 @@ async function renderWizard() {
   } else if (W.step === 4) {
     body.innerHTML = `
       <div class="card">
-        <div style="text-align:center; margin-bottom:20px;">
-          <h3>Check-in Completado</h3>
-          <p class="mut">Pase de abordar generado y notificado a Embarque (CHK-EMB).</p>
-        </div>
-        <div class="ticket-container">
+        <h3>Check-in Completado</h3>
+        <p class="mut mt">Pase de abordar generado y notificado a Embarque (CHK-EMB).</p>
+
+        <div class="ticket-container mt">
           <div class="ticket-header">
             <h2>Sierra Madre</h2>
             <p>Boarding Pass / Ticket de Embarque</p>
           </div>
           <div class="ticket-grid">
-            <div class="ticket-item">
-              <label>Reservación</label>
-              <div>${W.id}</div>
-            </div>
-            <div class="ticket-item">
-              <label>Cabina</label>
-              <div>${W.cab ? W.cab.id : 'N/A'}</div>
-            </div>
-            <div class="ticket-item">
-              <label>Pasajeros</label>
-              <div>${W.checkInIds.length} pers.</div>
-            </div>
-            <div class="ticket-item">
-              <label>Equipaje</label>
-              <div>${W.mal.n} pz / ${W.mal.kg} kg</div>
-            </div>
+            <div class="ticket-item"><label>Reservación</label><div>${W.id}</div></div>
+            <div class="ticket-item"><label>Cabina</label><div>${W.cab ? (W.cab.num || W.cab.id) : 'N/A'}</div></div>
+            <div class="ticket-item"><label>Pasajeros</label><div>${W.checkInIds.length} pers.</div></div>
+            <div class="ticket-item"><label>Equipaje</label><div>${W.mal.n} pz / ${W.mal.kg} kg</div></div>
           </div>
-          <div class="ticket-qr" id="ticket-qr-container">
+          <div id="ticket-qr-container" class="ticket-qr">
             <div class="spinner"></div>
+            <span class="mut">Generando código QR...</span>
           </div>
           <div class="ticket-footer">
-            <p>Escanear en el punto de embarque</p>
-            <p style="margin-top:4px;">Check-In ID: #${currentCheckInId}</p>
+            Escanear en el punto de embarque · Check-In ID: #${currentCheckInId}
           </div>
         </div>
+
         <div class="row sp mt">
           <button class="btn ghost" onclick="window.print()">Imprimir Ticket</button>
-          <button class="btn" onclick="irVista('inicio')">Volver al Dashboard</button>
+          <div class="row">
+            <button class="btn ghost" onclick="generarFR011()">Exportar Formato FR011</button>
+            <button class="btn" onclick="W = null; renderInicio()">Volver al Dashboard</button>
+          </div>
         </div>
       </div>
     `;
@@ -502,13 +559,19 @@ async function renderWizard() {
         logTrace("SU02", "200 OK · Código QR generado", "OK");
         const syncStatus = data.data.boardingSync?.status || 'SKIPPED';
         logTrace("CHK-EMB", `Envío DATOS_PASAJERO a Embarque: ${syncStatus}`, syncStatus === 'DELIVERED' ? 'OK' : 'WARN');
-        document.getElementById('ticket-qr-container').innerHTML = `<img src="${data.data.qrBase64}" style="width:150px; height:150px; object-fit: contain;" alt="QR" />`;
+        const qrContainer = document.getElementById('ticket-qr-container');
+        if (qrContainer) {
+          qrContainer.innerHTML = `<img src="${data.data.qrBase64}" alt="Código QR de Embarque" style="width:160px; height:160px;">`;
+        }
       } else {
         throw new Error(data.error?.message || "Error al generar QR");
       }
     } catch (err) {
       logTrace("SU02", err.message, "ERROR");
-      document.getElementById('ticket-qr-container').innerHTML = `<div class="note err">${err.message}</div>`;
+      const qrContainer = document.getElementById('ticket-qr-container');
+      if (qrContainer) {
+        qrContainer.innerHTML = `<div class="note err">${err.message}</div>`;
+      }
     }
   }
 }
@@ -518,18 +581,25 @@ async function asignarCabinaReal() {
   if (!cabinId) return toast("Ingresa un número de cabina", "warn");
   W.cabinInputId = cabinId;
   logTrace("ST06", `POST /api/check-in/cabin (checkInId: ${currentCheckInId}, cabinId: ${cabinId})`, "INFO");
+
   try {
     const res = await fetch('/api/check-in/cabin', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ checkInId: Number(currentCheckInId), cabinId })
     });
     const data = await res.json();
     if (data.success) {
       W.cab = { id: cabinId };
       const sumCabin = document.getElementById('summary-cabin');
-      if (sumCabin) { sumCabin.textContent = `Cabina ${cabinId}`; sumCabin.style.color = 'var(--ok)'; }
-      document.getElementById('btn-next-cab').disabled = false;
-      document.getElementById('tarjeta-msg').style.display = 'block';
+      if (sumCabin) {
+        sumCabin.textContent = `Cabina ${cabinId}`;
+        sumCabin.style.color = 'var(--ok)';
+      }
+      const nextBtn = document.getElementById('btn-next-cab');
+      if (nextBtn) nextBtn.disabled = false;
+      const msg = document.getElementById('tarjeta-msg');
+      if (msg) msg.style.display = 'block';
       logTrace("ST06", `200 OK · Cabina ${cabinId} asignada`, "OK");
       toast(`Cabina ${cabinId} asignada`, "ok");
     } else {
@@ -546,9 +616,11 @@ async function enviarEquipaje() {
   W.mal.n = +$("#eq-n").value;
   W.mal.kg = +$("#eq-kg").value;
   logTrace("ST07", `POST /api/check-in/luggage (checkInId: ${currentCheckInId})`, "INFO");
+
   try {
     const res = await fetch('/api/check-in/luggage', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ checkInId: Number(currentCheckInId), bagCount: W.mal.n, totalWeightKg: W.mal.kg, isVip: false })
     });
     const data = await res.json();
@@ -572,9 +644,11 @@ async function enviarAReservaciones() {
   btn.disabled = true;
   btn.textContent = "Enviando...";
   logTrace("ST05", `POST /api/check-in/confirm-reservation (checkInId: ${currentCheckInId})`, "INFO");
+
   try {
     const res = await fetch('/api/check-in/confirm-reservation', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ checkInId: Number(currentCheckInId) })
     });
     const data = await res.json();
@@ -586,12 +660,14 @@ async function enviarAReservaciones() {
     } else {
       logTrace("ST05", data.error?.message || "Rechazado por Reservaciones", "ERROR");
       toast("Error: " + (data.error?.message || "Rechazado"), "err");
-      btn.disabled = false; btn.textContent = originalText;
+      btn.disabled = false;
+      btn.textContent = originalText;
     }
   } catch (e) {
     logTrace("ST05", "Error de red al contactar Reservaciones", "ERROR");
     toast("Error de conexión con el servidor", "err");
-    btn.disabled = false; btn.textContent = originalText;
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
 }
 
@@ -611,9 +687,10 @@ function renderGerente() {
         <div class="value">${S.excepciones.length}</div>
       </div>
     </div>
+
     <div class="card">
       <h3>Bandeja de Excepciones (ST04)</h3>
-      <p class="mut">Solicitudes de autorización para check-ins con documentos observados.</p>
+      <p class="mut mt">Solicitudes de autorización para check-ins con documentos observados.</p>
       <div class="grid mt">
         ${S.excepciones.length === 0 ? '<p class="mut">No hay solicitudes pendientes.</p>' : ''}
         ${S.excepciones.map((e, i) => `
@@ -638,7 +715,7 @@ function resolverExcepcion(index, autorizar) {
     toast("Excepción autorizada. Continuando proceso.");
     const ids = Array.isArray(exc.checkInIds) ? exc.checkInIds : [exc.checkInIds];
     currentCheckInId = Number(ids[0]);
-    W = { id: exc.id, checkInIds: ids, step: 2, cab: null, mal: {n:1, kg:20}, docsValidos: true, cabinInputId: '' };
+    W = { id: exc.id, checkInIds: ids, step: 2, nombre: 'Pasajero autorizado', documento: 'Autorizado por Gerencia', cab: null, mal: { n: 1, kg: 20 }, docsValidos: true, cabinInputId: '' };
   } else {
     logTrace("ST04", `Gerente RECHAZA excepción de ${exc.id}`, "ERROR");
     toast("Excepción rechazada. Check-in cancelado.", "err");
@@ -646,27 +723,33 @@ function resolverExcepcion(index, autorizar) {
   }
   S.excepciones.splice(index, 1);
   cambiarRol('recepcion');
-  if (W) { renderWizard(); } else { renderInicio(); }
+  if (W) {
+    renderWizard();
+  } else {
+    renderInicio();
+  }
 }
 
 /* ================= FLUJO CHECK-OUT REAL ================= */
 function renderCheckout() {
   $("#view").innerHTML = `
-    <div class="card" style="max-width: 560px;">
+    <div class="card">
       <h3>Procesar Check-out (ST08 - ST12)</h3>
-      <p class="mut">Consulta el reporte de daños con el microservicio de Cabinas y procesa cobros extra con Banco si existen.</p>
-      <div class="mt">
-        <label>Check-In ID (SERIAL numérico)</label>
-        <input id="co-checkin-id" type="number" placeholder="Ej. 1">
+      <p class="mut mt">Consulta el reporte de daños con el microservicio de Cabinas y procesa cobros extra con Banco si existen.</p>
+      <div class="grid mt">
+        <div>
+          <label for="co-checkin-id">Check-In ID (SERIAL numérico)</label>
+          <input id="co-checkin-id" type="number" min="1" placeholder="Ej. 1">
+        </div>
+        <div>
+          <label for="co-doc">Documento del Pasajero (para Banco)</label>
+          <input id="co-doc" type="text" placeholder="Ej. 4532111122223333">
+        </div>
       </div>
-      <div class="mt">
-        <label>Documento del Pasajero (para Banco)</label>
-        <input id="co-doc" placeholder="Ej. 4532015112830366">
-      </div>
-      <div class="mt">
+      <div class="row mt">
         <button class="btn" onclick="ejecutarCheckoutReal()">Ejecutar Check-out y Liquidar Cuenta</button>
       </div>
-      <div id="checkout-result" class="mt"></div>
+      <div id="checkout-result"></div>
     </div>
   `;
 }
@@ -678,8 +761,10 @@ async function ejecutarCheckoutReal() {
   if (!checkInId || !documentNumber) {
     return toast("Ingresa el Check-In ID numérico y el documento del pasajero", "warn");
   }
+
   logTrace("ST08-ST12", `POST /api/check-in/checkout (${checkInId})`, "INFO");
   resDiv.innerHTML = `<div class="note">Consultando Cabinas y procesando liquidación con Banco...</div>`;
+
   try {
     const res = await fetch('/api/check-in/checkout', {
       method: 'POST',
@@ -702,9 +787,61 @@ async function ejecutarCheckoutReal() {
   }
 }
 
+/* ================= EXPORTAR FORMATO FR011 ================= */
+function generarFR011() {
+  if (!W) return toast("Inicia un Check-in primero", "warn");
+  const ventana = window.open('', '_blank');
+  if (!ventana) return toast("Permite las ventanas emergentes para ver el FR011", "warn");
+
+  ventana.document.write(`
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <title>Formato FR011 - Sierra Madre</title>
+      <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 40px; color: #333; }
+        h2 { text-align: center; text-transform: uppercase; color: #0f3f3a; }
+        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #b08a42; padding-bottom: 20px; }
+        .table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .table th, .table td { border: 1px solid #ccc; padding: 12px; text-align: left; font-size: 14px; }
+        .table th { background: #f3ead6; width: 30%; color: #0c1f1d; }
+        .firma { margin-top: 60px; text-align: center; border-top: 1px solid #000; width: 300px; margin-left: auto; margin-right: auto; padding-top: 10px; font-size: 14px; }
+        .footer { text-align: center; font-size: 10px; color: #888; margin-top: 40px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h2>Sierra Madre Resort &amp; Casino</h2>
+        <p>Formato FR011 - Registro de Pasajero</p>
+      </div>
+      <table class="table">
+        <tr><th>(1) No. de registro</th><td>CHK-${currentCheckInId}</td></tr>
+        <tr><th>(2) No. de reservación</th><td>${W.id}</td></tr>
+        <tr><th>(3) Fecha</th><td>${new Date().toLocaleDateString()}</td></tr>
+        <tr><th>(4) Hora</th><td>${new Date().toLocaleTimeString()}</td></tr>
+        <tr><th>(5) Pasajero</th><td>${W.nombre || 'Pasajero registrado en sistema'}</td></tr>
+        <tr><th>(6) Documento</th><td>${W.documento || 'Verificado en recepción'}</td></tr>
+        <tr><th>(7) No. de cabina</th><td>${W.cab ? (W.cab.num || W.cab.id) : 'PENDIENTE'}</td></tr>
+        <tr><th>(8) Piezas de equipaje</th><td>${W.mal.n} (${W.mal.kg} kg)</td></tr>
+        <tr><th>(9) Recepcionista</th><td>Admin (Terminal Marítima)</td></tr>
+        <tr><th>(10) Observaciones</th><td>Ninguna</td></tr>
+      </table>
+      <div class="firma">(11) Firma del pasajero</div>
+      <div class="footer">Documento generado automáticamente por el sistema PR11. Para el proyecto escolar, usar datos ficticios.</div>
+      <script>window.print();<\/script>
+    </body>
+    </html>
+  `);
+  ventana.document.close();
+}
+
 /* ================= INIT ================= */
 cambiarRol('recepcion');
-setInterval(() => $("#clock").textContent = new Date().toTimeString().slice(0,8), 1000);
+setInterval(() => {
+  const clockEl = $("#clock");
+  if (clockEl) clockEl.textContent = new Date().toTimeString().slice(0, 8);
+}, 1000);
 </script>
 </body>
 </html>

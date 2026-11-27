@@ -245,3 +245,17 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
   ### Corrección de URL Pública en Generación de Código QR
 - **`src/services/checkin.service.js`:**
   - Corregido el dominio base en `generateQR(checkInId)` hacia `sierra-madre-checkin.onrender.com/api/check-in/boarding-pass/{id}` y habilitada la regeneración/actualización automática de `qr_payload` en PostgreSQL (Neon) al solicitar el pase de abordar.
+
+  ### Exportación de Formato Oficial FR011 y Limpieza de Codificación UTF-8
+- **`public/index.html`:**
+  - Conectado `generarFR011()` con los datos reales cargados desde PostgreSQL (Neon) (`nombre_completo`, `num_cabina`, `nacionalidad`, `piezas` y `peso`) y agregado botón de exportación tanto en el Paso 1, Paso 4 como en el panel lateral de resumen del asistente.
+  - Restaurada codificación UTF-8 limpia en toda la interfaz web.
+
+  ### Exportación de Formato FR011, Limpieza de Servicio y Suite de 10 Pruebas en Verde
+- **`src/services/checkin.service.js`:**
+  - Restaurado `sendToReservations(checkInId)`, eliminada declaración duplicada de `processCheckout` y corregido acceso a filas (`rows`) en consultas PostgreSQL.
+  - Mantenido contrato de payload hacia Banco (`numTarjeta`, `nomCompleto`, `CVV`, `ctaDest`, `Monto`) y `COALESCE` de cabina en `generateQR`.
+- **`public/index.html`:**
+  - Conectado `generarFR011()` con los datos reales de la reservación desde Neon (`nombre_completo`, `num_cabina`, `nacionalidad`, `equipaje`) y restaurada codificación UTF-8 limpia.
+- **`tests/integration.test.js`:**
+  - Ajustado mock de consulta `generateQR` en Vitest; suite completa de 10 tests pasando en verde.
