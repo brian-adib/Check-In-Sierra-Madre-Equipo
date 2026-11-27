@@ -404,7 +404,7 @@ export const assignCabin = async (data) => {
     await client.query(
       `INSERT INTO Solicitud_cabina (id_registro, id_cabina, resultado, fecha_respuesta)
        VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`,
-      [idRegistro, idCabina, isCabinServiceOffline ? 'Asignada (Pendiente Sync)' : 'Asignada']
+      [idRegistro, idCabina, isCabinServiceOffline ? 'Pendiente Sync' : 'Asignada']
     );
 
     await client.query(
@@ -680,7 +680,7 @@ export const processCheckout = async (checkInId, documentNumber) => {
         : `Check-out successful. Extra charge of $${cabinReport.amount} processed for: ${cabinReport.reason}`;
     }
 
-    const estadoCuentaFinal = pendingCharge ? 'Pendiente de cobro' : 'Cerrada';
+    const estadoCuentaFinal = pendingCharge ? 'Pendiente' : 'Cerrada';
     await client.query(
       `UPDATE cuenta SET estado = $1, fecha_cierre = CURRENT_TIMESTAMP WHERE id_cuenta = $2`,
       [estadoCuentaFinal, idCuenta]

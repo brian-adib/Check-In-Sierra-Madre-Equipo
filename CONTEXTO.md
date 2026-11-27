@@ -238,3 +238,7 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
 - **`src/config/env.js`:**
   - Implementado helper `optionalServiceUrl(defaultUrl)` en el esquema de Zod para limpiar espacios (`trim()`) y aplicar respaldo automático si alguna variable de microservicio externo en Render (`RESERVATIONS_URL`, `BANK_URL`, `CABIN_AVAILABILITY_URL`, `CABIN_CHECKOUT_URL`, `BOARDING_URL`) se deja vacía o con texto placeholder mientras los demás equipos publican sus URLs.
 
+### Ajuste de Longitud VARCHAR(15) en Fallback de Cabinas y Cuenta
+- **`src/services/checkin.service.js`:**
+  - Ajustados los textos de estado de contingencia en `Solicitud_cabina.resultado` (`'Pendiente Sync'`, 14 caracteres) y `cuenta.estado` (`'Pendiente'`, 9 caracteres) para respetar la restricción `VARCHAR(15)` del esquema PR11 en PostgreSQL (Neon).
+  
