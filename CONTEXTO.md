@@ -233,3 +233,8 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
   - Cuando **Reservaciones** o **Cabinas** no responden, se aprueba localmente en modo contingencia (`PENDING_SYNC` / `Asignada (Pendiente Sync)`).
 - **`tests/integration.test.js`:**
   - Agregada prueba de tolerancia a fallos verificando el registro de pago `Pendiente` ante caída del microservicio de Banco (10 tests totales en verde).
+
+### Validación Tolerante de Variables de Entorno en Despliegue
+- **`src/config/env.js`:**
+  - Implementado helper `optionalServiceUrl(defaultUrl)` en el esquema de Zod para limpiar espacios (`trim()`) y aplicar respaldo automático si alguna variable de microservicio externo en Render (`RESERVATIONS_URL`, `BANK_URL`, `CABIN_AVAILABILITY_URL`, `CABIN_CHECKOUT_URL`, `BOARDING_URL`) se deja vacía o con texto placeholder mientras los demás equipos publican sus URLs.
+
