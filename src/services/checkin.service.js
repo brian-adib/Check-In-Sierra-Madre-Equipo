@@ -729,7 +729,7 @@ export const processCheckout = async (checkInId, documentNumber) => {
       );
 
       chargeMessage = bankOffline
-        ? `Check-out registrado con COBRO PENDIENTE de $${cabinReport.amount} (Banco no disponible: ${bankReport.reason}).`
+        ? `Check-out registrado con COBRO PENDIENTE de $${cabinReport.amount} (Banco no disponible: ${cabinReport.reason}).`
         : `Check-out successful. Extra charge of $${cabinReport.amount} processed for: ${cabinReport.reason}`;
     }
 
@@ -772,5 +772,6 @@ export const getBoardingPassData = async (checkInId) => {
   if (res.rows.length === 0) return null;
   return res.rows[0];
 };
+
 
 
