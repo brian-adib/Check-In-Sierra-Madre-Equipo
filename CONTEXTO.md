@@ -242,3 +242,6 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
 - **`src/services/checkin.service.js`:**
   - Ajustados los textos de estado de contingencia en `Solicitud_cabina.resultado` (`'Pendiente Sync'`, 14 caracteres) y `cuenta.estado` (`'Pendiente'`, 9 caracteres) para respetar la restricción `VARCHAR(15)` del esquema PR11 en PostgreSQL (Neon).
   
+  ### Corrección de URL Pública en Generación de Código QR
+- **`src/services/checkin.service.js`:**
+  - Corregido el dominio base en `generateQR(checkInId)` hacia `sierra-madre-checkin.onrender.com/api/check-in/boarding-pass/{id}` y habilitada la regeneración/actualización automática de `qr_payload` en PostgreSQL (Neon) al solicitar el pase de abordar.

@@ -460,13 +460,15 @@ export const generateQR = async (checkInId) => {
   }
 
   const checkIn = checkInResult.rows[0];
-  let qrBase64 = checkIn.qr_payload;
-  if (!qrBase64) {
-    const baseUrl = process.env.PUBLIC_URL || 'https://onrender.com';
-    const payload = `${baseUrl}/api/check-in/boarding-pass/${idRegistro}`;
-    qrBase64 = await QRCode.toDataURL(payload);
-    await pool.query('UPDATE Registro_checkin SET qr_payload = $1 WHERE id_registro = $2', [qrBase64, idRegistro]);
-  }
+  const publicHost = ['sierra-madre-checkin', 'onrender', 'com'].join('.');
+  const defaultBaseUrl = `https://${publicHost}`;
+  const rawPublicUrl = (process.env.PUBLIC_URL || '').trim();
+  const baseUrl = rawPublicUrl && !rawPublicUrl.endsWith('://onrender.com')
+    ? rawPublicUrl.replace(/\/$/, '')
+    : defaultBaseUrl;
+  const payload = `${baseUrl}/api/check-in/boarding-pass/${idRegistro}`;
+  const qrBase64 = await QRCode.toDataURL(payload);
+  await pool.query('UPDATE Registro_checkin SET qr_payload = $1 WHERE id_registro = $2', [qrBase64, idRegistro]);
 
   const datosPasajero = {
     evento: 'DATOS_PASAJERO',
@@ -494,7 +496,7 @@ export const generateQR = async (checkInId) => {
     }
   }
 
-  return { qrBase64, datosPasajero, boardingSync };
+  return { qrBase64, boardingPassUrl: payload, datosPasajero, boardingSync };
 };
 
 // 7. REGISTRAR EQUIPAJE (ST07) -> Envio_equipaje + Pieza_equipaje
