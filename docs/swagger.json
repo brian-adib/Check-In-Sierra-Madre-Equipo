@@ -2,12 +2,12 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Sierra Madre Check-In API",
-    "version": "1.3.0",
+    "version": "1.3.1",
     "description": "Microservicio de Check-in y Check-out (Equipo 11) respaldado por PostgreSQL (16 tablas oficiales PR11) con Adaptador Tolerante (ACL) para integración con Reservaciones, Cabinas, Banco y Embarque."
   },
   "servers": [
     {
-      "url": "https://sierra-madre-checkin.onrender.com",
+      "url": "https://onrender.com",
       "description": "Servidor de Producción (Render)"
     },
     {
@@ -15,9 +15,45 @@
       "description": "Servidor Local"
     }
   ],
-
   "paths": {
     "/api/check-in/reservations": {
+      "get": {
+        "summary": "Listar Reservaciones Registradas en PostgreSQL",
+        "description": "Consulta todas las reservaciones almacenadas en Neon junto con sus pasajeros, cabina asignada y estado de registro de check-in.",
+        "responses": {
+          "200": {
+            "description": "Lista de reservaciones obtenida correctamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id_reservacion": { "type": "integer", "example": 1 },
+                          "num_reservacion": { "type": "string", "example": "RSV-FAM-01" },
+                          "fecha_embarque": { "type": "string", "format": "date", "example": "2026-12-01" },
+                          "fecha_desembarque": { "type": "string", "format": "date", "example": "2026-12-08" },
+                          "estado_reservacion": { "type": "string", "example": "Vigente" },
+                          "id_pasajero": { "type": "integer", "example": 1 },
+                          "nombre_completo": { "type": "string", "example": "Carlos Ruiz" },
+                          "num_cabina": { "type": "string", "example": "C-104" },
+                          "id_checkin": { "type": "integer", "nullable": true, "example": 101 },
+                          "estado_checkin": { "type": "string", "nullable": true, "example": "En proceso" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "summary": "Recibir Reservación Externa (Adaptador Tolerante ACL)",
         "description": "Endpoint receptor para que el microservicio de Reservaciones envíe pasajeros individuales o familias completas. Acepta campos adicionales sin rechazar la petición.",
@@ -219,12 +255,12 @@
     },
     "/api/check-in/{id}/qr": {
       "get": {
-        "summary": "Obtener Pase QR (SU02)",
-        "description": "Genera el código QR en Base64 que apunta al pase de abordar.",
+        "summary": "Obtener Pase QR (SU02) y Notificar a Embarque (CHK-EMB)",
+        "description": "Genera el código QR en Base64 que apunta al pase de abordar y envía el payload DATOS_PASAJERO al microservicio de Embarque configurado en BOARDING_URL.",
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "example": 1 } }
         ],
-        "responses": { "200": { "description": "QR generado en Base64" } }
+        "responses": { "200": { "description": "QR generado en Base64 y estado de sincronización con Embarque" } }
       }
     }
   },

@@ -218,4 +218,10 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
 - **`tests/integration.test.js`:**
   - Suite actualizada en Vitest (9 tests totales en verde junto con `health.test.js`), validando `GET /api/check-in/reservations` y la notificación saliente hacia `BOARDING_URL`.
 
-  
+  ### Actualización de Dashboard Web y Documentación OpenAPI (Pasos 2 y 3 Completados)
+- **`public/index.html`:**
+  - Conectado el Dashboard de Recepción a `GET /api/check-in/reservations` para listar en tiempo real las reservaciones almacenadas en PostgreSQL (Neon) con botón de inicio/continuación rápida de Check-in en un clic.
+  - Garantizado que `currentCheckInId` almacene siempre un entero `SERIAL` limpio (`Number(ids[0])`) para los endpoints `/confirm-reservation`, `/cabin`, `/luggage`, `/{id}/qr` y `/checkout`.
+  - Agregada traza de sincronización con Embarque (`CHK-EMB`) en el panel flotante de tráfico de microservicios al generar el QR.
+- **`docs/swagger.json`:**
+  - Documentado el endpoint `GET /api/check-in/reservations` y la notificación saliente `DATOS_PASAJERO` hacia `BOARDING_URL` en `GET /api/check-in/{id}/qr`.
