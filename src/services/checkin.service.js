@@ -465,7 +465,7 @@ export const generateQR = async (checkInId) => {
         FROM Solicitud_cabina sc
         JOIN Cabina cab ON sc.id_cabina = cab.id_cabina
         WHERE sc.id_registro = rc.id_registro
-        ORDER BY sc.id_solicitud DESC
+        ORDER BY sc.id_solicitud_cab DESC
         LIMIT 1)
      ) AS num_cabina,
      (SELECT pe.descripcion
@@ -772,6 +772,7 @@ export const getBoardingPassData = async (checkInId) => {
   if (res.rows.length === 0) return null;
   return res.rows[0];
 };
+
 
 
 
