@@ -3,7 +3,7 @@ import request from 'supertest';
 import app from '../src/app.js';
 import { pool } from '../src/db/client.js';
 
-describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales)', () => {
+describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales + Fallback)', () => {
   beforeAll(() => {
     process.env.BOARDING_URL = 'http://localhost:3004/api/boarding/passengers';
 
@@ -27,37 +27,25 @@ describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales)', () => {
       if (sql.includes('FROM Reservacion r')) {
         if (Array.isArray(params) && params.includes('RSV-FAM-01')) {
           return Promise.resolve({
-            rows: [
-              {
-                id_reservacion: 10,
-                num_reservacion: 'RSV-FAM-01',
-                id_cabina: 5,
-                nombre_completo: 'Carlos Ruiz',
-                fecha_nacimiento: '1988-04-12'
-              }
-            ]
+            rows: [{ id_reservacion: 10, num_reservacion: 'RSV-FAM-01', id_cabina: 5, nombre_completo: 'Carlos Ruiz', fecha_nacimiento: '1988-04-12' }]
           });
         }
         return Promise.resolve({ rows: [] });
       }
       if (sql.includes('SELECT rc.estado, rc.qr_payload')) {
         return Promise.resolve({
-          rows: [
-            {
-              estado: 'En proceso',
-              qr_payload: null,
-              num_reservacion: 'RSV-FAM-01',
-              nombre_completo: 'Carlos Ruiz',
-              num_cabina: 'C-104',
-              tipo_equipaje: 'Maleta 1 (18 kg total)'
-            }
-          ]
+          rows: [{
+            estado: 'En proceso',
+            qr_payload: null,
+            num_reservacion: 'RSV-FAM-01',
+            nombre_completo: 'Carlos Ruiz',
+            num_cabina: 'C-104',
+            tipo_equipaje: 'Maleta 1 (18 kg total)'
+          }]
         });
       }
       if (sql.includes('FROM Registro_checkin rc')) {
-        return Promise.resolve({
-          rows: [{ id_registro: 101, num_reservacion: 'RSV-FAM-01', nombre_completo: 'Carlos Ruiz' }]
-        });
+        return Promise.resolve({ rows: [{ id_registro: 101, num_reservacion: 'RSV-FAM-01', nombre_completo: 'Carlos Ruiz' }] });
       }
       return Promise.resolve({ rows: [] });
     });
@@ -69,6 +57,9 @@ describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales)', () => {
         if (sql.includes('INSERT INTO Reservacion')) return Promise.resolve({ rows: [{ id_reservacion: 10, num_reservacion: 'RSV-FAM-01' }] });
         if (sql.includes('SELECT id_registro FROM Registro_checkin')) return Promise.resolve({ rows: [{ id_registro: 101 }] });
         if (sql.includes('INSERT INTO Solicitud_cabina')) return Promise.resolve({ rows: [{ id_solicitud_cab: 1 }] });
+        if (sql.includes('SELECT id_cuenta')) return Promise.resolve({ rows: [{ id_cuenta: 30 }] });
+        if (sql.includes('INSERT INTO cargo')) return Promise.resolve({ rows: [{ id_cargo: 40 }] });
+        if (sql.includes('INSERT INTO cobro')) return Promise.resolve({ rows: [{ id_cobro: 50 }] });
         return Promise.resolve({ rows: [] });
       }),
       release: vi.fn(),
@@ -88,6 +79,9 @@ describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales)', () => {
           status: 200,
           text: () => Promise.resolve(JSON.stringify({ success: true, available: true }))
         });
+      }
+      if (url.includes('/bank/charge')) {
+        return Promise.reject(new TypeError('fetch failed'));
       }
       if (url.includes('/boarding/passengers')) {
         return Promise.resolve({
@@ -178,5 +172,17 @@ describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales)', () => {
       estado: 'En proceso'
     });
     expect(res.body.data.boardingSync.sent).toBe(true);
+  });
+
+  it('8. Debe aplicar tolerancia a fallos (Fallback) y registrar cobro PENDIENTE si Banco está caído', async () => {
+    const res = await request(app)
+      .post('/api/check-in/pay')
+      .send({ checkInId: 101, amount: 250, documentNumber: '4532015112830366' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.paymentStatus).toBe('Pendiente');
+    expect(res.body.data.fallbackMode).toBe(true);
+    expect(res.body.data.message).toContain('PENDIENTE');
   });
 });

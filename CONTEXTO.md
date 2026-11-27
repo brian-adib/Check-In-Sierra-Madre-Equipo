@@ -225,3 +225,11 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
   - Agregada traza de sincronización con Embarque (`CHK-EMB`) en el panel flotante de tráfico de microservicios al generar el QR.
 - **`docs/swagger.json`:**
   - Documentado el endpoint `GET /api/check-in/reservations` y la notificación saliente `DATOS_PASAJERO` hacia `BOARDING_URL` en `GET /api/check-in/{id}/qr`.
+
+  ### Tolerancia a Fallos / Patrón Fallback en Microservicios Externos
+- **`src/services/checkin.service.js`:**
+  - Implementado manejo de contingencia (*Fallback*) cuando los servicios vecinos (`RESERVATIONS_URL`, `CABIN_AVAILABILITY_URL`, `CABIN_CHECKOUT_URL`, `BANK_URL`) están caídos o inaccesibles, diferenciando fallos de red (`fetch failed`) de rechazos reales de negocio (`400`, `402`, `409`).
+  - Cuando **Banco** no responde, el pago se registra en `deposito` con estado `Pendiente` (y `cuenta` como `Pendiente de cobro` en Check-out), notificando el adeudo pendiente sin interrumpir la operación.
+  - Cuando **Reservaciones** o **Cabinas** no responden, se aprueba localmente en modo contingencia (`PENDING_SYNC` / `Asignada (Pendiente Sync)`).
+- **`tests/integration.test.js`:**
+  - Agregada prueba de tolerancia a fallos verificando el registro de pago `Pendiente` ante caída del microservicio de Banco (10 tests totales en verde).

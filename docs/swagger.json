@@ -1,14 +1,14 @@
-{
+﻿{
   "openapi": "3.0.0",
   "info": {
     "title": "Sierra Madre Check-In API",
     "version": "1.3.1",
-    "description": "Microservicio de Check-in y Check-out (Equipo 11) respaldado por PostgreSQL (16 tablas oficiales PR11) con Adaptador Tolerante (ACL) para integración con Reservaciones, Cabinas, Banco y Embarque."
+    "description": "Microservicio de Check-in y Check-out (Equipo 11) respaldado por PostgreSQL (16 tablas oficiales PR11) con Adaptador Tolerante (ACL) para integraciÃ³n con Reservaciones, Cabinas, Banco y Embarque."
   },
   "servers": [
     {
       "url": "https://onrender.com",
-      "description": "Servidor de Producción (Render)"
+      "description": "Servidor de ProducciÃ³n (Render)"
     },
     {
       "url": "http://localhost:3000",
@@ -55,8 +55,8 @@
         }
       },
       "post": {
-        "summary": "Recibir Reservación Externa (Adaptador Tolerante ACL)",
-        "description": "Endpoint receptor para que el microservicio de Reservaciones envíe pasajeros individuales o familias completas. Acepta campos adicionales sin rechazar la petición.",
+        "summary": "Recibir ReservaciÃ³n Externa (Adaptador Tolerante ACL)",
+        "description": "Endpoint receptor para que el microservicio de Reservaciones envÃ­e pasajeros individuales o familias completas. Acepta campos adicionales sin rechazar la peticiÃ³n.",
         "requestBody": {
           "required": true,
           "content": {
@@ -88,15 +88,15 @@
           }
         },
         "responses": {
-          "201": { "description": "Reservación y pasajeros registrados en PostgreSQL" },
-          "400": { "description": "Falta identificador de reservación" }
+          "201": { "description": "ReservaciÃ³n y pasajeros registrados en PostgreSQL" },
+          "400": { "description": "Falta identificador de reservaciÃ³n" }
         }
       }
     },
     "/api/check-in/initiate": {
       "post": {
         "summary": "Iniciar Check-in (ST01)",
-        "description": "Valida que la reservación exista en PostgreSQL, verifica regla de adultos/menores y abre Registro_checkin y cuenta.",
+        "description": "Valida que la reservaciÃ³n exista en PostgreSQL, verifica regla de adultos/menores y abre Registro_checkin y cuenta.",
         "requestBody": {
           "required": true,
           "content": {
@@ -112,15 +112,15 @@
         },
         "responses": {
           "201": { "description": "Check-in iniciado exitosamente" },
-          "404": { "description": "Reservación no encontrada" },
-          "422": { "description": "Menores sin adulto acompañante" }
+          "404": { "description": "ReservaciÃ³n no encontrada" },
+          "422": { "description": "Menores sin adulto acompaÃ±ante" }
         }
       }
     },
     "/api/check-in/confirm-reservation": {
       "post": {
         "summary": "Confirmar con Reservaciones (ST05)",
-        "description": "Envía los datos validados al microservicio de Reservaciones para su Visto Bueno.",
+        "description": "EnvÃ­a los datos validados al microservicio de Reservaciones para su Visto Bueno.",
         "requestBody": {
           "required": true,
           "content": {
@@ -135,7 +135,7 @@
           }
         },
         "responses": {
-          "200": { "description": "Reservación confirmada" },
+          "200": { "description": "ReservaciÃ³n confirmada" },
           "400": { "description": "Rechazado por Reservaciones" }
         }
       }
@@ -143,7 +143,7 @@
     "/api/check-in/pay": {
       "post": {
         "summary": "Procesar Pago de Check-in (ST04)",
-        "description": "Envía el cargo al microservicio de Banco y registra en cargo, cobro, deposito y comprobante.",
+        "description": "EnvÃ­a el cargo al microservicio de Banco y registra en cargo, cobro, deposito y comprobante.",
         "requestBody": {
           "required": true,
           "content": {
@@ -199,7 +199,7 @@
     "/api/check-in/luggage": {
       "post": {
         "summary": "Registrar Equipaje (ST07)",
-        "description": "Valida el límite de equipaje según estatus VIP y guarda en Envio_equipaje y Pieza_equipaje.",
+        "description": "Valida el lÃ­mite de equipaje segÃºn estatus VIP y guarda en Envio_equipaje y Pieza_equipaje.",
         "requestBody": {
           "required": true,
           "content": {
@@ -218,14 +218,14 @@
         },
         "responses": {
           "200": { "description": "Equipaje registrado" },
-          "422": { "description": "ERR_LUGGAGE_LIMIT (Excede límite)" }
+          "422": { "description": "ERR_LUGGAGE_LIMIT (Excede lÃ­mite)" }
         }
       }
     },
     "/api/check-in/checkout": {
       "post": {
         "summary": "Procesar Check-out (ST08-ST12)",
-        "description": "Consulta daños al microservicio de Cabinas (reporte_estado), cobra cargos extra con Banco y cierra cuenta.",
+        "description": "Consulta daÃ±os al microservicio de Cabinas (reporte_estado), cobra cargos extra con Banco y cierra cuenta.",
         "requestBody": {
           "required": true,
           "content": {
@@ -256,11 +256,11 @@
     "/api/check-in/{id}/qr": {
       "get": {
         "summary": "Obtener Pase QR (SU02) y Notificar a Embarque (CHK-EMB)",
-        "description": "Genera el código QR en Base64 que apunta al pase de abordar y envía el payload DATOS_PASAJERO al microservicio de Embarque configurado en BOARDING_URL.",
+        "description": "Genera el cÃ³digo QR en Base64 que apunta al pase de abordar y envÃ­a el payload DATOS_PASAJERO al microservicio de Embarque configurado en BOARDING_URL.",
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "example": 1 } }
         ],
-        "responses": { "200": { "description": "QR generado en Base64 y estado de sincronización con Embarque" } }
+        "responses": { "200": { "description": "QR generado en Base64 y estado de sincronizaciÃ³n con Embarque" } }
       }
     }
   },

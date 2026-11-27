@@ -28,6 +28,7 @@ async function fetchExternalService(url, options = {}) {
     const error = new Error(`Servicio externo respondió con error ${response.status}`);
     error.statusCode = response.status;
     error.externalData = data;
+    error.isBusinessRejection = response.status >= 400 && response.status < 500;
     throw error;
   }
 
@@ -47,7 +48,6 @@ export const receiveExternalReservation = async (rawBody) => {
   const fechaEmbarque = rawBody.fecha_embarque || rawBody.embarkDate || new Date().toISOString().slice(0, 10);
   const fechaDesembarque = rawBody.fecha_desembarque || rawBody.disembarkDate || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 
-  // Soporta arreglo de familia (pasajeros / passengers) o un solo titular en la raíz
   const rawList = Array.isArray(rawBody.pasajeros)
     ? rawBody.pasajeros
     : Array.isArray(rawBody.passengers)
@@ -58,7 +58,6 @@ export const receiveExternalReservation = async (rawBody) => {
   try {
     await client.query('BEGIN');
 
-    // Asegurar cabina en tabla Cabina
     const cabRes = await client.query(
       `INSERT INTO Cabina (num_cabina, estado, payload_externo)
        VALUES ($1, 'Disponible', $2)
@@ -92,7 +91,6 @@ export const receiveExternalReservation = async (rawBody) => {
       );
       const idPasajero = paxRes.rows[0].id_pasajero;
 
-      // Si vienen varios integrantes en la familia, sufijamos -1, -2 para respetar UNIQUE(num_reservacion)
       const numResIndividual = rawList.length === 1 ? baseCode : `${baseCode}-${i + 1}`;
 
       const resInsert = await client.query(
@@ -155,7 +153,7 @@ export const getAllReservations = async () => {
   return result.rows;
 };
 
-// 2. INICIAR CHECK-IN (ST01) - Busca por código exacto o familia (ej. RSV-FAM-01 o RSV-FAM-01-1)
+// 2. INICIAR CHECK-IN (ST01)
 export const initiateCheckIn = async (data) => {
   const code = data.groupCode.trim().toUpperCase();
 
@@ -209,7 +207,6 @@ export const initiateCheckIn = async (data) => {
         );
         idRegistro = ins.rows[0].id_registro;
 
-        // Abrir cuenta asociada al registro
         await client.query(
           `INSERT INTO cuenta (id_registro, estado) VALUES ($1, 'Abierta')`,
           [idRegistro]
@@ -227,7 +224,7 @@ export const initiateCheckIn = async (data) => {
   }
 };
 
-// 3. CONFIRMAR CON RESERVACIONES (ST05)
+// 3. CONFIRMAR CON RESERVACIONES (ST05) CON TOLERANCIA A FALLOS (FALLBACK)
 export const sendToReservations = async (checkInId) => {
   const regRes = await pool.query(
     `SELECT rc.id_registro, r.num_reservacion, p.nombre_completo
@@ -239,57 +236,85 @@ export const sendToReservations = async (checkInId) => {
   );
 
   const info = regRes.rows[0] || { id_registro: checkInId };
+  const targetUrl = process.env.RESERVATIONS_URL || RESERVATIONS_URL;
 
-  const data = await fetchExternalService(RESERVATIONS_URL, {
-    method: 'POST',
-    body: JSON.stringify({
-      checkInId,
-      num_reservacion: info.num_reservacion,
-      nombre_completo: info.nombre_completo,
-      status: 'PENDING_CONFIRMATION'
-    })
-  });
+  try {
+    const data = await fetchExternalService(targetUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        checkInId,
+        num_reservacion: info.num_reservacion,
+        nombre_completo: info.nombre_completo,
+        status: 'PENDING_CONFIRMATION'
+      })
+    });
 
-  if (data.success === false || data.validado === false) {
-    const error = new Error('Reservaciones rechazó el Check-in');
-    error.code = 'ERR_RESERVATION_REJECTED';
-    error.statusCode = 400;
-    throw error;
+    if (data.success === false || data.validado === false) {
+      const error = new Error('Reservaciones rechazó el Check-in');
+      error.code = 'ERR_RESERVATION_REJECTED';
+      error.statusCode = 400;
+      throw error;
+    }
+    return { ...data, fallbackMode: false };
+  } catch (err) {
+    if (err.code === 'ERR_RESERVATION_REJECTED' || err.isBusinessRejection) {
+      throw err;
+    }
+    console.warn(`[FALLBACK RESERVACIONES] Servicio no disponible (${err.message}). Continuando en modo contingencia.`);
+    return {
+      success: true,
+      fallbackMode: true,
+      syncStatus: 'PENDING_SYNC',
+      message: 'Microservicio de Reservaciones no disponible: validación local aprobada con sincronización pendiente.'
+    };
   }
-  return data;
 };
 
-// 4. PROCESAR PAGO (ST04) -> Registra en cuenta, cargo, cobro, deposito y comprobante
+// 4. PROCESAR PAGO (ST04) CON TOLERANCIA A FALLOS (FALLBACK -> DEPOSITO PENDIENTE)
 export const processPayment = async (data) => {
   const { checkInId, amount, documentNumber } = data;
   const idRegistro = Number(checkInId);
+  const targetUrl = process.env.BANK_URL || BANK_URL;
 
-  const result = await fetchExternalService(BANK_URL, {
-    method: 'POST',
-    body: JSON.stringify({ amount, document: documentNumber })
-  });
+  let result = null;
+  let isBankOffline = false;
 
-  if (result.success === false) {
-    const error = new Error('Payment declined');
-    error.code = 'ERR_PAYMENT_PENDING';
-    error.statusCode = 402;
-    throw error;
+  try {
+    result = await fetchExternalService(targetUrl, {
+      method: 'POST',
+      body: JSON.stringify({ amount, document: documentNumber })
+    });
+
+    if (result.success === false) {
+      const error = new Error('Payment declined');
+      error.code = 'ERR_PAYMENT_PENDING';
+      error.statusCode = 402;
+      throw error;
+    }
+  } catch (err) {
+    if (err.code === 'ERR_PAYMENT_PENDING' || err.isBusinessRejection) {
+      throw err;
+    }
+    console.warn(`[FALLBACK BANCO] Banco caído (${err.message}). Registrando cobro como PENDIENTE.`);
+    isBankOffline = true;
+    result = {
+      fallback: true,
+      status: 'PENDIENTE_BANCO',
+      reason: err.message
+    };
   }
 
-  const folio = String(result.transactionId || result.noTr || `FOL-${Date.now()}`).slice(0, 30);
+  const estadoDeposito = isBankOffline ? 'Pendiente' : 'Aprobado';
+  const folio = isBankOffline
+    ? `PEND-${Date.now()}`.slice(0, 30)
+    : String(result.transactionId || result.noTr || `FOL-${Date.now()}`).slice(0, 30);
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const ctaRes = await client.query(
-      'SELECT id_cuenta FROM cuenta WHERE id_registro = $1 LIMIT 1',
-      [idRegistro]
-    );
+    const ctaRes = await client.query('SELECT id_cuenta FROM cuenta WHERE id_registro = $1 LIMIT 1', [idRegistro]);
     const idCuenta = ctaRes.rows[0]?.id_cuenta || (
-      await client.query(
-        "INSERT INTO cuenta (id_registro, estado) VALUES ($1, 'Abierta') RETURNING id_cuenta",
-        [idRegistro]
-      )
+      await client.query("INSERT INTO cuenta (id_registro, estado) VALUES ($1, 'Abierta') RETURNING id_cuenta", [idRegistro])
     ).rows[0].id_cuenta;
 
     const cargoRes = await client.query(
@@ -308,14 +333,14 @@ export const processPayment = async (data) => {
 
     await client.query(
       `INSERT INTO deposito (id_cobro, monto, estado, folio_confirmacion, fecha_respuesta, payload_externo)
-       VALUES ($1, $2, 'Aprobado', $3, CURRENT_TIMESTAMP, $4)`,
-      [cobroRes.rows[0].id_cobro, amount, folio, JSON.stringify(result)]
+       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5)`,
+      [cobroRes.rows[0].id_cobro, amount, estadoDeposito, folio, JSON.stringify(result)]
     );
 
     await client.query(
       `INSERT INTO comprobante (id_cuenta, monto_cobrado, folio_deposito)
        VALUES ($1, $2, $3)`,
-      [idCuenta, amount, folio]
+      [idCuenta, isBankOffline ? 0 : amount, folio]
     );
 
     await client.query('COMMIT');
@@ -326,21 +351,42 @@ export const processPayment = async (data) => {
     client.release();
   }
 
-  return { message: 'Payment processed successfully', folio, externalResponse: result };
+  return {
+    message: isBankOffline
+      ? 'Banco no disponible: cobro registrado como PENDIENTE en la cuenta del pasajero.'
+      : 'Payment processed successfully',
+    paymentStatus: estadoDeposito,
+    fallbackMode: isBankOffline,
+    folio,
+    externalResponse: result
+  };
 };
 
-// 5. CONSULTAR Y ASIGNAR CABINA (ST06)
+// 5. CONSULTAR Y ASIGNAR CABINA (ST06) CON TOLERANCIA A FALLOS (FALLBACK)
 export const assignCabin = async (data) => {
   const { checkInId, cabinId } = data;
   const idRegistro = Number(checkInId);
   const numCabina = String(cabinId).trim().slice(0, 10);
+  const targetUrl = process.env.CABIN_AVAILABILITY_URL || CABIN_AVAILABILITY_URL;
 
-  const result = await fetchExternalService(`${CABIN_AVAILABILITY_URL}/${encodeURIComponent(numCabina)}`);
-  if (result.success === false || result.available === false) {
-    const error = new Error('Cabin is full or not found');
-    error.code = 'ERR_CABIN_FULL';
-    error.statusCode = 409;
-    throw error;
+  let result = null;
+  let isCabinServiceOffline = false;
+
+  try {
+    result = await fetchExternalService(`${targetUrl}/${encodeURIComponent(numCabina)}`);
+    if (result.success === false || result.available === false) {
+      const error = new Error('Cabin is full or not found');
+      error.code = 'ERR_CABIN_FULL';
+      error.statusCode = 409;
+      throw error;
+    }
+  } catch (err) {
+    if (err.code === 'ERR_CABIN_FULL' || err.isBusinessRejection) {
+      throw err;
+    }
+    console.warn(`[FALLBACK CABINAS] Servicio de Cabinas no disponible (${err.message}). Asignando localmente.`);
+    isCabinServiceOffline = true;
+    result = { fallback: true, cabin: numCabina, reason: err.message };
   }
 
   const client = await pool.connect();
@@ -357,8 +403,8 @@ export const assignCabin = async (data) => {
 
     await client.query(
       `INSERT INTO Solicitud_cabina (id_registro, id_cabina, resultado, fecha_respuesta)
-       VALUES ($1, $2, 'Asignada', CURRENT_TIMESTAMP)`,
-      [idRegistro, idCabina]
+       VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`,
+      [idRegistro, idCabina, isCabinServiceOffline ? 'Asignada (Pendiente Sync)' : 'Asignada']
     );
 
     await client.query(
@@ -367,7 +413,14 @@ export const assignCabin = async (data) => {
     );
 
     await client.query('COMMIT');
-    return { message: 'Cabin assigned successfully', id_cabina: idCabina, num_cabina: numCabina };
+    return {
+      message: isCabinServiceOffline
+        ? 'Cabinas no disponible: cabina asignada localmente (sincronización pendiente).'
+        : 'Cabin assigned successfully',
+      fallbackMode: isCabinServiceOffline,
+      id_cabina: idCabina,
+      num_cabina: numCabina
+    };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -501,7 +554,7 @@ export const registerLuggage = async (data) => {
   }
 };
 
-// 8. CHECK-OUT (ST08 - ST12) -> reporte_estado, cuenta, cargo, cobro, deposito, comprobante
+// 8. CHECK-OUT (ST08 - ST12) CON TOLERANCIA A FALLOS EN CABINAS Y BANCO
 export const processCheckout = async (checkInId, documentNumber) => {
   const idRegistro = Number(checkInId);
   const result = await pool.query(
@@ -520,11 +573,31 @@ export const processCheckout = async (checkInId, documentNumber) => {
   }
 
   const { id_cabina: idCabina, num_cabina: numCabina } = result.rows[0];
-  const cabinReport = await fetchExternalService(`${CABIN_CHECKOUT_URL}/${encodeURIComponent(numCabina)}`);
-  const hasCharges = Boolean(cabinReport.hasCharges && cabinReport.amount > 0);
+  const targetCabinCheckoutUrl = process.env.CABIN_CHECKOUT_URL || CABIN_CHECKOUT_URL;
+  const targetBankUrl = process.env.BANK_URL || BANK_URL;
 
+  let cabinReport;
+  let cabinOffline = false;
+  try {
+    cabinReport = await fetchExternalService(`${targetCabinCheckoutUrl}/${encodeURIComponent(numCabina)}`);
+  } catch (err) {
+    console.warn(`[FALLBACK CHECKOUT CABINAS] Cabinas no disponible (${err.message}). Inspección marcada pendiente.`);
+    cabinOffline = true;
+    cabinReport = {
+      hasCharges: false,
+      amount: 0,
+      encargado: 'Contingencia Check-out',
+      reason: 'Microservicio Cabinas no disponible al momento del Check-out (Pendiente verificación)'
+    };
+  }
+
+  const hasCharges = Boolean(cabinReport.hasCharges && cabinReport.amount > 0);
   const client = await pool.connect();
-  let chargeMessage = 'Check-out successful. No extra charges.';
+  let chargeMessage = cabinOffline
+    ? 'Check-out completado (inspección de Cabinas pendiente de sincronización).'
+    : 'Check-out successful. No extra charges.';
+  let pendingCharge = false;
+
   try {
     await client.query('BEGIN');
     const repRes = await client.query(
@@ -548,19 +621,33 @@ export const processCheckout = async (checkInId, documentNumber) => {
     ).rows[0].id_cuenta;
 
     if (hasCharges) {
-      const bankResult = await fetchExternalService(BANK_URL, {
-        method: 'POST',
-        body: JSON.stringify({ amount: cabinReport.amount, document: documentNumber })
-      });
-
-      if (bankResult.success === false) {
-        const e = new Error('Extra charges declined');
-        e.code = 'ERR_PAYMENT_PENDING';
-        e.statusCode = 402;
-        throw e;
+      let bankResult;
+      let bankOffline = false;
+      try {
+        bankResult = await fetchExternalService(targetBankUrl, {
+          method: 'POST',
+          body: JSON.stringify({ amount: cabinReport.amount, document: documentNumber })
+        });
+        if (bankResult.success === false) {
+          const e = new Error('Extra charges declined');
+          e.code = 'ERR_PAYMENT_PENDING';
+          e.statusCode = 402;
+          throw e;
+        }
+      } catch (bankErr) {
+        if (bankErr.code === 'ERR_PAYMENT_PENDING' || bankErr.isBusinessRejection) {
+          throw bankErr;
+        }
+        console.warn(`[FALLBACK CHECKOUT BANCO] Banco caído (${bankErr.message}). Dejando cobro de $${cabinReport.amount} PENDIENTE.`);
+        bankOffline = true;
+        pendingCharge = true;
+        bankResult = { fallback: true, status: 'PENDIENTE_BANCO', reason: bankErr.message };
       }
 
-      const folio = String(bankResult.transactionId || bankResult.noTr || `FOL-${Date.now()}`).slice(0, 30);
+      const estadoDeposito = bankOffline ? 'Pendiente' : 'Aprobado';
+      const folio = bankOffline
+        ? `PEND-${Date.now()}`.slice(0, 30)
+        : String(bankResult.transactionId || bankResult.noTr || `FOL-${Date.now()}`).slice(0, 30);
 
       const cargoRes = await client.query(
         `INSERT INTO cargo (id_cuenta, id_report_estado, descripcion, monto)
@@ -578,25 +665,31 @@ export const processCheckout = async (checkInId, documentNumber) => {
 
       await client.query(
         `INSERT INTO deposito (id_cobro, monto, estado, folio_confirmacion, fecha_respuesta, payload_externo)
-         VALUES ($1, $2, 'Aprobado', $3, CURRENT_TIMESTAMP, $4)`,
-        [cobroRes.rows[0].id_cobro, cabinReport.amount, folio, JSON.stringify(bankResult)]
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5)`,
+        [cobroRes.rows[0].id_cobro, cabinReport.amount, estadoDeposito, folio, JSON.stringify(bankResult)]
       );
 
       await client.query(
         `INSERT INTO comprobante (id_cuenta, monto_cobrado, folio_deposito)
          VALUES ($1, $2, $3)`,
-        [idCuenta, cabinReport.amount, folio]
+        [idCuenta, bankOffline ? 0 : cabinReport.amount, folio]
       );
 
-      chargeMessage = `Check-out successful. Extra charge of $${cabinReport.amount} processed for: ${cabinReport.reason}`;
+      chargeMessage = bankOffline
+        ? `Check-out registrado con COBRO PENDIENTE de $${cabinReport.amount} (Banco no disponible: ${cabinReport.reason}).`
+        : `Check-out successful. Extra charge of $${cabinReport.amount} processed for: ${cabinReport.reason}`;
     }
 
-    await client.query("UPDATE cuenta SET estado = 'Cerrada', fecha_cierre = CURRENT_TIMESTAMP WHERE id_cuenta = $1", [idCuenta]);
+    const estadoCuentaFinal = pendingCharge ? 'Pendiente de cobro' : 'Cerrada';
+    await client.query(
+      `UPDATE cuenta SET estado = $1, fecha_cierre = CURRENT_TIMESTAMP WHERE id_cuenta = $2`,
+      [estadoCuentaFinal, idCuenta]
+    );
     await client.query("UPDATE Cabina SET estado = 'Disponible' WHERE id_cabina = $1", [idCabina]);
     await client.query("UPDATE Registro_checkin SET estado = 'Completado' WHERE id_registro = $1", [idRegistro]);
 
     await client.query('COMMIT');
-    return { message: chargeMessage };
+    return { message: chargeMessage, pendingCharge, fallbackMode: cabinOffline || pendingCharge };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
