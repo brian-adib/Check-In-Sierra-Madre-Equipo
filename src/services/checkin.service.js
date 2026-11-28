@@ -135,15 +135,18 @@ export const receiveExternalReservation = async (rawBody) => {
       fecha_nacimiento: cliObj.fechaNacimiento || cliObj.fecha_nacimiento || '1990-01-01',
       nacionalidad: cliObj.nacionalidad || 'Mexicana',
     };
+        titular.parentesco = 'Titular';
     rawList = [titular];
     for (let h = 2; h <= numHuespedes; h++) {
       rawList.push({
         id_cliente: titular.id_cliente ? `${titular.id_cliente}-A${h}` : null,
         nombre_completo: `Acompañante ${h - 1} (${titular.nombre_completo})`,
+        parentesco: 'Acompañante',
         fecha_nacimiento: '1992-01-01',
         nacionalidad: titular.nacionalidad,
       });
     }
+
   }
 
   const client = await pool.connect();
@@ -185,23 +188,26 @@ export const receiveExternalReservation = async (rawBody) => {
       const correo = p.correo || p.email || null;
       const nacionalidad = (p.nacionalidad || p.nationality || 'Mexicana').slice(0, 40);
 
+            const esTitular = i === 0;
+      const parentesco = (p.parentesco || (esTitular ? 'Titular' : 'Acompañante')).slice(0, 30);
+      const montoIndividual = esTitular ? totalMonto : 0;
+
       const paxRes = await client.query(
-        `INSERT INTO Pasajero (nombre_completo, fecha_nacimiento, telefono, correo, nacionalidad, id_cliente_externo, identificacion, domicilio)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `INSERT INTO Pasajero (nombre_completo, fecha_nacimiento, telefono, correo, nacionalidad, id_cliente_externo, identificacion, domicilio, parentesco)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING id_pasajero`,
-        [nombreCompleto, fechaNacimiento, telefono, correo, nacionalidad, idClienteExt, identificacion, domicilio]
+        [nombreCompleto, fechaNacimiento, telefono, correo, nacionalidad, idClienteExt, identificacion, domicilio, parentesco]
       );
       const idPasajero = paxRes.rows[0].id_pasajero;
 
       const numResIndividual = (rawList.length === 1 ? baseCode : `${baseCode}-${i + 1}`).slice(0, 60);
 
-
       const resInsert = await client.query(
         `INSERT INTO Reservacion (
            num_reservacion, id_pasajero, id_cabina, fecha_embarque, fecha_desembarque, estado,
-           id_evento_tour, nombre_viaje, puerto_salida, paquete, num_huespedes, total, fecha_emision, ultimos4_tarj, payload_externo
+           id_evento_tour, nombre_viaje, puerto_salida, paquete, num_huespedes, total, fecha_emision, ultimos4_tarj, codigo_grupo, es_titular, payload_externo
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
          ON CONFLICT (num_reservacion) DO UPDATE SET
            id_pasajero = EXCLUDED.id_pasajero,
            id_cabina = EXCLUDED.id_cabina,
@@ -215,24 +221,13 @@ export const receiveExternalReservation = async (rawBody) => {
            num_huespedes = EXCLUDED.num_huespedes,
            total = COALESCE(EXCLUDED.total, Reservacion.total),
            ultimos4_tarj = COALESCE(EXCLUDED.ultimos4_tarj, Reservacion.ultimos4_tarj),
+           codigo_grupo = COALESCE(EXCLUDED.codigo_grupo, Reservacion.codigo_grupo),
+           es_titular = EXCLUDED.es_titular,
            payload_externo = EXCLUDED.payload_externo
          RETURNING id_reservacion, num_reservacion`,
-        [
-          numResIndividual,
-          idPasajero,
-          idCabina,
-          fechaEmbarque,
-          fechaDesembarque,
-          estatusRaw,
-          idEventoTour,
-          nombreViaje,
-          puertoSalida,
-          paquete,
-          numHuespedes,
-          totalMonto,
-          fechaEmision,
-          ultimos4Tarj,
-          JSON.stringify(rawBody),
+                [
+          numResIndividual, idPasajero, idCabina, fechaEmbarque, fechaDesembarque, estatusRaw,
+          idEventoTour, nombreViaje, puertoSalida, paquete, numHuespedes, montoIndividual, fechaEmision, ultimos4Tarj, baseCode.slice(0, 60), esTitular, JSON.stringify(rawBody)
         ]
       );
 
@@ -245,6 +240,7 @@ export const receiveExternalReservation = async (rawBody) => {
     }
 
     await client.query('COMMIT');
+
     return {
       codigoBase: baseCode,
       totalPasajeros: savedReservations.length,
@@ -261,10 +257,12 @@ export const receiveExternalReservation = async (rawBody) => {
 // 1.B CONSULTAR RESERVACIONES REGISTRADAS EN NEON (GET /api/check-in/reservations)
 export const getAllReservations = async () => {
   const result = await pool.query(`
-    SELECT
+        SELECT
       r.id_reservacion, r.num_reservacion, r.fecha_embarque, r.fecha_desembarque,
       r.estado AS estado_reservacion, r.nombre_viaje, r.paquete, r.num_huespedes, r.total,
-      p.id_pasajero, p.id_cliente_externo, p.nombre_completo, p.identificacion,
+      r.codigo_grupo, r.es_titular,
+      p.id_pasajero, p.id_cliente_externo, p.nombre_completo, p.parentesco, p.identificacion,
+
       p.fecha_nacimiento, p.nacionalidad,
       c.id_cabina, c.num_cabina, c.categoria_tipo, c.estado AS estado_cabina,
       rc.id_registro AS id_checkin, rc.estado AS estado_checkin, rc.qr_payload
@@ -573,12 +571,25 @@ export const assignCabin = async (data) => {
       [idRegistro, idCabina, isCabinServiceOffline ? 'Pendiente Sync' : 'Asignada']
     );
 
-    await client.query(`UPDATE Registro_checkin SET id_cabina = $1, estado = 'En proceso' WHERE id_registro = $2`, [
-      idCabina,
-      idRegistro,
-    ]);
+        await client.query(`UPDATE Cabina SET fecha_actualizacion = CURRENT_TIMESTAMP WHERE id_cabina = $1`, [idCabina]);
+
+    await client.query(
+      `UPDATE Registro_checkin SET id_cabina = $1, estado = 'En proceso'
+       WHERE id_registro = $2
+          OR id_reservacion IN (
+            SELECT r2.id_reservacion FROM Reservacion r2
+            WHERE r2.codigo_grupo IS NOT NULL
+              AND r2.codigo_grupo = (
+                SELECT r1.codigo_grupo FROM Registro_checkin rc1
+                JOIN Reservacion r1 ON rc1.id_reservacion = r1.id_reservacion
+                WHERE rc1.id_registro = $2
+              )
+          )`,
+      [idCabina, idRegistro]
+    );
 
     await client.query('COMMIT');
+
     return {
       message: isCabinServiceOffline
         ? 'Cabinas no disponible: cabina asignada localmente (sincronización pendiente).'
@@ -763,7 +774,11 @@ export const registerLuggage = async (data) => {
     num_reservacion: infoRegistro.num_reservacion || `RES-${idRegistro}`,
     nombreCompleto: infoRegistro.nombre_completo || 'Pasajero',
     nombre_completo: infoRegistro.nombre_completo || 'Pasajero',
-    tipoEquipaje: `${cantidadPiezas} pieza(s) ${isVip ? 'VIP' : 'Estándar'}`,
+        tipoEquipaje:
+      piezasRegistradas.length > 0
+        ? `${cantidadPiezas} pieza(s): ${piezasRegistradas.map((pz) => pz.descripcion).join(', ')}`
+        : `${cantidadPiezas} pieza(s) ${isVip ? 'VIP' : 'Estándar'}`,
+
     estado: infoRegistro.estado || 'En proceso',
     horaRecepcion: new Date().toISOString(),
     cantidad_piezas: cantidadPiezas,
@@ -1019,3 +1034,50 @@ export const getBoardingPassData = async (checkInId) => {
 };
 
 
+// 10. RECEPTOR ACTUALIZACIÓN DESDE EQUIPAJE / EMBARQUE (Evento EMB - CHK · Interfaz 10 DATOS_PASAJERO)
+export const receiveBoardingOrLuggageUpdate = async (rawBody) => {
+  const noReservacion = String(rawBody.noReservacion || rawBody.num_reservacion || '').trim().toUpperCase();
+  const idCliente = String(rawBody.id_cliente || '').trim();
+  const nuevoEstado = String(rawBody.estado || 'Entregado').slice(0, 30);
+  const horaRecepcion = rawBody.horaRecepcion ? new Date(rawBody.horaRecepcion) : new Date();
+  const horaValida = Number.isNaN(horaRecepcion.getTime()) ? new Date() : horaRecepcion;
+
+  const regRes = await pool.query(
+    `SELECT rc.id_registro
+     FROM Registro_checkin rc
+     JOIN Reservacion r ON rc.id_reservacion = r.id_reservacion
+     JOIN Pasajero p ON r.id_pasajero = p.id_pasajero
+     WHERE ($1 <> '' AND (r.num_reservacion = $1 OR r.codigo_grupo = $1))
+        OR ($2 <> '' AND p.id_cliente_externo = $2)
+     ORDER BY rc.id_registro DESC`,
+    [noReservacion, idCliente]
+  );
+
+  if (regRes.rows.length === 0) {
+    const e = new Error('No se encontró registro de check-in para actualizar desde Equipaje/Embarque');
+    e.statusCode = 404;
+    throw e;
+  }
+
+  const ids = regRes.rows.map((r) => r.id_registro);
+  await pool.query(
+    `UPDATE Registro_checkin
+     SET estado_embarque = $1, hora_recepcion_ext = $2, payload_externo = $3
+     WHERE id_registro = ANY($4::int[])`,
+    [nuevoEstado, horaValida, JSON.stringify(rawBody), ids]
+  );
+
+  await pool.query(
+    `UPDATE Envio_equipaje
+     SET estado = LEFT($1, 10), hora_recepcion_ext = $2, payload_externo = $3
+     WHERE id_registro = ANY($4::int[])`,
+    [nuevoEstado, horaValida, JSON.stringify(rawBody), ids]
+  );
+
+  return {
+    actualizados: ids.length,
+    registros: ids,
+    estado_embarque: nuevoEstado,
+    hora_recepcion_ext: horaValida.toISOString(),
+  };
+};

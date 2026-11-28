@@ -352,29 +352,38 @@ async function cargarReservacionesNeon() {
         tbody.innerHTML = `<tr><td colspan="8" class="mut">No hay reservaciones registradas todavía en Neon.</td></tr>`;
         return;
       }
-      tbody.innerHTML = data.data.map(r => {
+            tbody.innerHTML = data.data.map(r => {
         const estadoCk = r.estado_checkin || 'Sin iniciar';
         const badgeClass = estadoCk === 'Completado' ? 'ok' : (estadoCk === 'En proceso' ? '' : 'err');
         const btnLabel = r.id_checkin ? `Continuar (#${r.id_checkin})` : 'Iniciar Check-in';
+        const esFamilia = Number(r.num_huespedes || 1) > 1;
+        const rolBadge = esFamilia
+          ? ` <span class="tag ${r.es_titular === false ? '' : 'ok'}">${r.parentesco || (r.es_titular === false ? 'Acompañante' : 'Titular')}</span>`
+          : '';
+        const grupoTxt = esFamilia && r.codigo_grupo ? `<br><small class="mut">Grupo: ${r.codigo_grupo}</small>` : '';
         const clienteIdTxt = r.id_cliente_externo ? `<br><small class="mut">ID: ${r.id_cliente_externo}</small>` : '';
         const viajeTxt = r.nombre_viaje || 'Crucero';
         const paqueteTxt = r.paquete ? `<br><small class="mut">${r.paquete}</small>` : '';
         const cabinaCat = r.categoria_tipo ? `<br><small class="mut">${r.categoria_tipo}</small>` : '';
-        const huespedesTxt = `${r.num_huespedes || 1} pax`;
-        const totalTxt = r.total !== null && r.total !== undefined ? `<br><small class="mut">$${Number(r.total).toLocaleString('es-MX')}</small>` : '';
+        const huespedesTxt = esFamilia ? `<b>Familia (${r.num_huespedes} pax)</b>` : '1 pax';
+        const totalTxt = r.es_titular === false
+          ? `<br><small class="mut">Incluido en grupo</small>`
+          : (r.total !== null && r.total !== undefined ? `<br><small class="mut">$${Number(r.total).toLocaleString('es-MX')}</small>` : '');
+        const codigoIniciar = esFamilia && r.codigo_grupo ? r.codigo_grupo : r.num_reservacion;
         return `
           <tr>
-            <td><b>${r.num_reservacion}</b></td>
-            <td>${r.nombre_completo}${clienteIdTxt}</td>
+            <td><b>${r.num_reservacion}</b>${grupoTxt}</td>
+            <td>${r.nombre_completo}${rolBadge}${clienteIdTxt}</td>
             <td>${viajeTxt}${paqueteTxt}</td>
             <td>${r.num_cabina || 'PENDIENTE'}${cabinaCat}</td>
             <td>${huespedesTxt}${totalTxt}</td>
             <td>${r.fecha_embarque ? String(r.fecha_embarque).slice(0, 10) : '--'}</td>
             <td><span class="tag ${badgeClass}">${estadoCk}</span></td>
-            <td><button class="btn sm" onclick="iniciarDesdeTabla('${r.num_reservacion}')">${btnLabel}</button></td>
+            <td><button class="btn sm" onclick="iniciarDesdeTabla('${codigoIniciar}')">${btnLabel}</button></td>
           </tr>
         `;
       }).join('');
+
 
     } else {
       tbody.innerHTML = `<tr><td colspan="6" class="mut">Error al cargar reservaciones.</td></tr>`;

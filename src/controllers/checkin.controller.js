@@ -113,6 +113,14 @@ export const checkout = async (req, res, next) => {
     next(error);
   }
 };
+export const embUpdate = async (req, res, next) => {
+  try {
+    const result = await checkinService.receiveBoardingOrLuggageUpdate(req.body);
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+};
 
 
 export const boardingPass = async (req, res, next) => {

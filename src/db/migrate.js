@@ -160,6 +160,29 @@ const schemaSQL = `
   ALTER TABLE deposito
     ADD COLUMN IF NOT EXISTS edo_trans VARCHAR(40),
     ADD COLUMN IF NOT EXISTS cta_dest VARCHAR(60);
+
+  ALTER TABLE pasajero
+  ADD COLUMN IF NOT EXISTS parentesco VARCHAR(30) DEFAULT 'Titular';
+
+ALTER TABLE reservacion
+  ADD COLUMN IF NOT EXISTS codigo_grupo VARCHAR(60),
+  ADD COLUMN IF NOT EXISTS es_titular BOOLEAN DEFAULT TRUE;
+
+ALTER TABLE cabina
+  ADD COLUMN IF NOT EXISTS fecha_actualizacion TIMESTAMP;
+
+ALTER TABLE envio_equipaje
+  ADD COLUMN IF NOT EXISTS hora_recepcion_ext TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS payload_externo JSONB;
+
+ALTER TABLE registro_checkin
+  ADD COLUMN IF NOT EXISTS hora_recepcion_ext TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS estado_embarque VARCHAR(30),
+  ADD COLUMN IF NOT EXISTS payload_externo JSONB;
+
+ALTER TABLE deposito
+  ADD COLUMN IF NOT EXISTS monto_aprobado_banco DECIMAL(10,2);
+
 `;
 
 async function runMigrations() {
