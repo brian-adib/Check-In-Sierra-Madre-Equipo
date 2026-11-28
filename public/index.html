@@ -625,7 +625,9 @@ async function enviarEquipaje() {
     });
     const data = await res.json();
     if (data.success) {
-      logTrace("ST07", "200 OK · Equipaje registrado", "OK");
+      logTrace("ST07", `200 OK · Equipaje registrado (${data.data.luggagePayload?.cantidad_piezas || W.mal.n} pz · Cabina ${data.data.luggagePayload?.num_cabina || ''})`, "OK");
+      const lugStatus = data.data.luggageSync?.status || 'SKIPPED_NO_URL';
+      logTrace("CHK-EQP", `Payload Equipaje listo (${lugStatus}): ${JSON.stringify(data.data.luggagePayload)}`, lugStatus === 'DELIVERED' ? 'OK' : 'WARN');
       W.step = 4;
       renderWizard();
     } else {

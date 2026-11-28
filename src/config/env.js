@@ -28,6 +28,7 @@ const envSchema = z.object({
   CABIN_AVAILABILITY_URL: optionalServiceUrl('http://localhost:3003/api/cabins/availability'),
   CABIN_CHECKOUT_URL: optionalServiceUrl('http://localhost:3003/api/cabins/checkout-report'),
   BOARDING_URL: optionalServiceUrl('http://localhost:3004/api/boarding/passengers'),
+  LUGGAGE_URL: z.string().trim().optional().default(''),
 });
 
 const _env = envSchema.safeParse(process.env);

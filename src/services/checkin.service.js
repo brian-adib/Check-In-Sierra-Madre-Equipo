@@ -6,6 +6,8 @@ const BANK_URL = process.env.BANK_URL || 'http://localhost:3002/api/bank/charge'
 const CABIN_AVAILABILITY_URL = process.env.CABIN_AVAILABILITY_URL || 'http://localhost:3003/api/cabins/availability';
 const CABIN_CHECKOUT_URL = process.env.CABIN_CHECKOUT_URL || 'http://localhost:3003/api/cabins/checkout-report';
 const BOARDING_URL = process.env.BOARDING_URL || '';
+const LUGGAGE_URL = process.env.LUGGAGE_URL || '';
+
 
 async function fetchExternalService(url, options = {}) {
   console.log(`[OUTBOUND REQUEST] -> ${options.method || 'GET'} ${url}`, options.body || '');
@@ -531,14 +533,17 @@ export const generateQR = async (checkInId) => {
 };
 
 // 7. REGISTRAR EQUIPAJE (ST07) -> Envio_equipaje + Pieza_equipaje
+// 7. REGISTRAR EQUIPAJE (ST07) -> Envio_equipaje + Pieza_equipaje + Payload completo a Equipaje (sin kilos)
 export const registerLuggage = async (data) => {
   const { checkInId, bagCount, totalWeightKg, isVip } = data;
   const idRegistro = Number(checkInId);
-  let extraFee = 0;
+  const cantidadPiezas = Math.max(0, Number(bagCount) || 0);
+  const pesoTotal = Number(totalWeightKg) || 0;
 
+  let extraFee = 0;
   if (!isVip) {
-    const extraBags = Math.max(0, bagCount - 1);
-    const extraWeight = Math.max(0, totalWeightKg - 20);
+    const extraBags = Math.max(0, cantidadPiezas - 1);
+    const extraWeight = Math.max(0, pesoTotal - 20);
     extraFee = (extraBags * 10) + (extraWeight * 10);
   }
 
@@ -550,10 +555,24 @@ export const registerLuggage = async (data) => {
   }
 
   const client = await pool.connect();
+  let idEnvio;
+  let piezasRegistradas = [];
+  let infoRegistro = null;
+
   try {
     await client.query('BEGIN');
+    const regRes = await client.query(
+      `SELECT rc.id_cabina, r.num_reservacion, p.nombre_completo,
+              COALESCE(c.num_cabina, rcab.num_cabina, 'PENDIENTE') AS num_cabina
+       FROM Registro_checkin rc
+       LEFT JOIN Reservacion r ON rc.id_reservacion = r.id_reservacion
+       LEFT JOIN Pasajero p ON r.id_pasajero = p.id_pasajero
+       LEFT JOIN Cabina c ON rc.id_cabina = c.id_cabina
+       LEFT JOIN Cabina rcab ON r.id_cabina = rcab.id_cabina
+       WHERE rc.id_registro = $1`,
+      [idRegistro]
+    );
 
-    const regRes = await client.query('SELECT id_cabina FROM Registro_checkin WHERE id_registro = $1', [idRegistro]);
     if (regRes.rows.length === 0) {
       const e = new Error('Check-in not found');
       e.code = 'ERR_NOT_FOUND';
@@ -561,29 +580,76 @@ export const registerLuggage = async (data) => {
       throw e;
     }
 
-    const idCabina = regRes.rows[0].id_cabina;
+    infoRegistro = regRes.rows;
+    const idCabina = infoRegistro.id_cabina;
+
     const envRes = await client.query(
-      `INSERT INTO Envio_equipaje (id_registro, id_cabina, estado) VALUES ($1, $2, 'Enviado') RETURNING id_envio`,
+      `INSERT INTO Envio_equipaje (id_registro, id_cabina, estado)
+       VALUES ($1, $2, 'Enviado')
+       RETURNING id_envio`,
       [idRegistro, idCabina]
     );
-    const idEnvio = envRes.rows[0].id_envio;
+    idEnvio = envRes.rows.id_envio;
 
-    for (let i = 1; i <= Math.max(1, bagCount); i++) {
+    for (let i = 1; i <= Math.max(1, cantidadPiezas); i++) {
+      const etiqueta = `TAG-${idRegistro}-${i}`;
+      const descripcion = `Maleta ${i} de ${Math.max(1, cantidadPiezas)}`;
       await client.query(
-        `INSERT INTO Pieza_equipaje (id_envio, etiqueta, descripcion, estado) VALUES ($1, $2, $3, 'Registrada')`,
-        [idEnvio, `TAG-${idRegistro}-${i}`, `Maleta ${i} (${totalWeightKg} kg total)`]
+        `INSERT INTO Pieza_equipaje (id_envio, etiqueta, descripcion, estado)
+         VALUES ($1, $2, $3, 'Registrada')`,
+        [idEnvio, etiqueta, descripcion]
       );
+      piezasRegistradas.push({
+        etiqueta,
+        descripcion,
+        estado: 'Registrada'
+      });
     }
 
     await client.query('COMMIT');
-    return { message: 'Luggage registered successfully', id_envio: idEnvio, extraFee };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
   } finally {
     client.release();
   }
+
+  // Payload completo hacia microservicio de Equipaje (excluyendo kilos)
+  const luggagePayload = {
+    id_registro: idRegistro,
+    num_reservacion: infoRegistro.num_reservacion || `RES-${idRegistro}`,
+    nombre_completo: infoRegistro.nombre_completo || 'Pasajero',
+    num_cabina: infoRegistro.num_cabina || 'PENDIENTE',
+    cantidad_piezas: cantidadPiezas,
+    es_vip: Boolean(isVip),
+    piezas: piezasRegistradas
+  };
+
+  const targetLuggageUrl = (process.env.LUGGAGE_URL || LUGGAGE_URL).trim();
+  let luggageSync = { sent: false, status: 'SKIPPED_NO_URL' };
+
+  if (targetLuggageUrl) {
+    try {
+      const extResp = await fetchExternalService(targetLuggageUrl, {
+        method: 'POST',
+        body: JSON.stringify(luggagePayload)
+      });
+      luggageSync = { sent: true, status: 'DELIVERED', response: extResp };
+    } catch (syncErr) {
+      console.warn(`[FALLBACK EQUIPAJE] No se pudo notificar a ${targetLuggageUrl}:`, syncErr.message);
+      luggageSync = { sent: false, status: 'UNREACHABLE', error: syncErr.message };
+    }
+  }
+
+  return {
+    message: 'Luggage registered successfully',
+    id_envio: idEnvio,
+    extraFee,
+    luggagePayload,
+    luggageSync
+  };
 };
+
 
 // 8. CHECK-OUT (ST08 - ST12) CON TOLERANCIA A FALLOS EN CABINAS Y BANCO
 export const processCheckout = async (checkInId, documentNumber) => {
@@ -772,6 +838,7 @@ export const getBoardingPassData = async (checkInId) => {
   if (res.rows.length === 0) return null;
   return res.rows[0];
 };
+
 
 
 

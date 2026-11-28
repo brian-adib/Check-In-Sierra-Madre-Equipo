@@ -266,3 +266,9 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
 ### Endpoint Índice Informativo en API
 - **`src/routes/checkin.route.js`:**
   - Agregada ruta raíz `GET /api/check-in` que retorna un índice JSON descriptivo con todos los endpoints disponibles del microservicio, métodos HTTP y rutas a `/docs` y `/health`.
+
+### Contrato Completo de Salida hacia Microservicio de Equipaje (Sin Kilos)
+- **`src/config/env.js`, `.env.example`, `render.yaml`:**
+  - Agregada variable opcional `LUGGAGE_URL` con tolerancia a fallos.
+- **`src/services/checkin.service.js`:**
+  - Actualizado `registerLuggage(data)` para construir y enviar `luggagePayload` con `id_registro`, `num_reservacion`, `nombre_completo`, `num_cabina`, `cantidad_piezas`, `es_vip` y `piezas` (sin incluir datos de peso/kilos), registrando estado `SKIPPED_NO_URL` o `UNREACHABLE` si el servicio externo aún no está publicado.

@@ -24,3 +24,5 @@ services:
         sync: false
       - key: BOARDING_URL
         sync: false
+      - key: LUGGAGE_URL
+        sync: false
