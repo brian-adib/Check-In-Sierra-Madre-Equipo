@@ -164,13 +164,16 @@ describe('Flujo E2E de Check-in API (PR11 - 16 Tablas Oficiales + Fallback)', ()
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.qrBase64).toContain('data:image/png;base64,');
-    expect(res.body.data.datosPasajero).toMatchObject({
-      evento: 'DATOS_PASAJERO',
-      noCabina: 'C-104',
+        expect(res.body.data.datosPasajero).toMatchObject({
+      id_cabina: 'C-104',
       noReservacion: 'RSV-FAM-01',
       nombreCompleto: 'Carlos Ruiz',
-      estado: 'En proceso'
+      estado: 'En proceso',
     });
+    expect(res.body.data.datosPasajero).toHaveProperty('horaRecepcion');
+    expect(res.body.data.datosPasajero).toHaveProperty('tipoEquipaje');
+    expect(res.body.data.datosPasajero).toHaveProperty('id_cliente');
+
     expect(res.body.data.boardingSync.sent).toBe(true);
   });
 
