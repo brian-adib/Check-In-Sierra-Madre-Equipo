@@ -272,3 +272,13 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
   - Agregada variable opcional `LUGGAGE_URL` con tolerancia a fallos.
 - **`src/services/checkin.service.js`:**
   - Actualizado `registerLuggage(data)` para construir y enviar `luggagePayload` con `id_registro`, `num_reservacion`, `nombre_completo`, `num_cabina`, `cantidad_piezas`, `es_vip` y `piezas` (sin incluir datos de peso/kilos), registrando estado `SKIPPED_NO_URL` o `UNREACHABLE` si el servicio externo aún no está publicado.
+
+### Normalización de Esquema y 5 Interfaces de la Matriz de Conectividad CRUCERO MOUSE
+- **`src/db/migrate.js` y PostgreSQL (Neon):**
+  - Agregadas columnas normalizadas mediante `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` en `Pasajero` (`id_cliente_externo`, `identificacion`, `domicilio`), `Reservacion` (`id_evento_tour`, `nombre_viaje`, `puerto_salida`, `paquete`, `num_huespedes`, `total`, `fecha_emision`, `ultimos4_tarj`), `Cabina` (`id_cabina_externo`, `categoria_tipo`, `capacidad`, `estatus_operativo`, `en_mantenimiento`, `enlazable_reserva`) y `deposito` (`edo_trans`, `cta_dest`).
+- **`src/services/checkin.service.js`:**
+  - **Interfaz 8 (`RSV_VENDIDA`):** Mapeo tolerante tanto de los 14 campos de la Matriz como de las colecciones reales de MongoDB de Reservaciones (`folio`, `cliente`, `viaje`, `tipoCamarote`, `numeroPasajeros`, `importe`, `identificacion`, `domicilio`, `destino`, `fechaSalida`, `duracionDias`).
+  - **Interfaz 11 (`REGIS_CHK`):** Envío de `ID_cliente`, `id_cabina` y `tipoEquipaje` al confirmar con Reservaciones.
+  - **Interfaz 10 (`DATOS_PASAJERO`):** Envío hacia E9 (Equipaje / Embarque) con los 7 campos oficiales (`id_cabina`, `horaRecepcion`, `noReservacion`, `nombreCompleto`, `tipoEquipaje`, `estado`, `id_cliente`) y detalle de piezas **sin kilos**.
+  - **Interfaz 7 (`DISPONIBILIDAD_CABINAS`):** Validación de `estatusOperativo`, `enMantenimiento` y `enlazableReserva` con tolerancia a fallos.
+  - **Interfaces 1 y 2 (`DATOS_TRANS` / `EDO_TRANS`):** Soporte de `ctaDest` dinámico y persistencia de `edoTr` y `noTr` en `deposito`.

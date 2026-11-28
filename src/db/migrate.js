@@ -143,15 +143,42 @@ const schemaSQL = `
     folio_deposito VARCHAR(30) NOT NULL
   );
 
-  -- ================= COLUMNAS TOLERANTES JSONB (ACL) =================
+  -- ================= COLUMNAS TOLERANTES JSONB Y MATRIZ DE CONECTIVIDAD =================
   ALTER TABLE Reservacion ADD COLUMN IF NOT EXISTS payload_externo JSONB;
   ALTER TABLE Cabina ADD COLUMN IF NOT EXISTS payload_externo JSONB;
   ALTER TABLE reporte_estado ADD COLUMN IF NOT EXISTS payload_externo JSONB;
   ALTER TABLE deposito ADD COLUMN IF NOT EXISTS payload_externo JSONB;
+
+  ALTER TABLE Pasajero
+    ADD COLUMN IF NOT EXISTS id_cliente_externo VARCHAR(60),
+    ADD COLUMN IF NOT EXISTS identificacion VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS domicilio VARCHAR(200);
+
+  ALTER TABLE Reservacion
+    ADD COLUMN IF NOT EXISTS id_evento_tour VARCHAR(60),
+    ADD COLUMN IF NOT EXISTS nombre_viaje VARCHAR(120),
+    ADD COLUMN IF NOT EXISTS puerto_salida VARCHAR(80),
+    ADD COLUMN IF NOT EXISTS paquete VARCHAR(80),
+    ADD COLUMN IF NOT EXISTS num_huespedes INTEGER DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS total DECIMAL(10,2),
+    ADD COLUMN IF NOT EXISTS fecha_emision TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS ultimos4_tarj VARCHAR(4);
+
+  ALTER TABLE Cabina
+    ADD COLUMN IF NOT EXISTS id_cabina_externo VARCHAR(60),
+    ADD COLUMN IF NOT EXISTS categoria_tipo VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS capacidad INTEGER,
+    ADD COLUMN IF NOT EXISTS estatus_operativo VARCHAR(40),
+    ADD COLUMN IF NOT EXISTS en_mantenimiento BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS enlazable_reserva BOOLEAN DEFAULT TRUE;
+
+  ALTER TABLE deposito
+    ADD COLUMN IF NOT EXISTS edo_trans VARCHAR(40),
+    ADD COLUMN IF NOT EXISTS cta_dest VARCHAR(60);
 `;
 
 async function runMigrations() {
-  console.log('🔄 Verificando/actualizando las 16 tablas oficiales PR11 con soporte JSONB...');
+  console.log('🔄 Verificando/actualizando las 16 tablas oficiales PR11 con soporte JSONB y Matriz...');
   try {
     await pool.query(schemaSQL);
     console.log('✅ Esquema PR11 listo en PostgreSQL.');
