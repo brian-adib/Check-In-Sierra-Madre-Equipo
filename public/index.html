@@ -299,19 +299,22 @@ function renderInicio() {
       </div>
       <div class="scroll mt">
         <table>
-          <thead>
+                    <thead>
             <tr>
               <th>Código Reserva</th>
-              <th>Pasajero</th>
+              <th>Pasajero / ID Cliente</th>
+              <th>Viaje / Paquete</th>
               <th>Cabina</th>
+              <th>Huéspedes / Total</th>
               <th>Embarque</th>
               <th>Estado Check-in</th>
               <th>Acción</th>
             </tr>
           </thead>
           <tbody id="tabla-reservaciones-body">
-            <tr><td colspan="6" class="mut">Cargando reservaciones desde PostgreSQL...</td></tr>
+            <tr><td colspan="8" class="mut">Cargando reservaciones desde PostgreSQL...</td></tr>
           </tbody>
+
         </table>
       </div>
     </div>
@@ -345,25 +348,34 @@ async function cargarReservacionesNeon() {
     if (data.success && Array.isArray(data.data)) {
       RESERVACIONES_CACHE = data.data;
       if (statRes) statRes.textContent = data.data.length;
-      if (data.data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="mut">No hay reservaciones registradas todavía en Neon.</td></tr>`;
+            if (data.data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="mut">No hay reservaciones registradas todavía en Neon.</td></tr>`;
         return;
       }
       tbody.innerHTML = data.data.map(r => {
         const estadoCk = r.estado_checkin || 'Sin iniciar';
         const badgeClass = estadoCk === 'Completado' ? 'ok' : (estadoCk === 'En proceso' ? '' : 'err');
         const btnLabel = r.id_checkin ? `Continuar (#${r.id_checkin})` : 'Iniciar Check-in';
+        const clienteIdTxt = r.id_cliente_externo ? `<br><small class="mut">ID: ${r.id_cliente_externo}</small>` : '';
+        const viajeTxt = r.nombre_viaje || 'Crucero';
+        const paqueteTxt = r.paquete ? `<br><small class="mut">${r.paquete}</small>` : '';
+        const cabinaCat = r.categoria_tipo ? `<br><small class="mut">${r.categoria_tipo}</small>` : '';
+        const huespedesTxt = `${r.num_huespedes || 1} pax`;
+        const totalTxt = r.total !== null && r.total !== undefined ? `<br><small class="mut">$${Number(r.total).toLocaleString('es-MX')}</small>` : '';
         return `
           <tr>
             <td><b>${r.num_reservacion}</b></td>
-            <td>${r.nombre_completo}</td>
-            <td>${r.num_cabina || 'PENDIENTE'}</td>
+            <td>${r.nombre_completo}${clienteIdTxt}</td>
+            <td>${viajeTxt}${paqueteTxt}</td>
+            <td>${r.num_cabina || 'PENDIENTE'}${cabinaCat}</td>
+            <td>${huespedesTxt}${totalTxt}</td>
             <td>${r.fecha_embarque ? String(r.fecha_embarque).slice(0, 10) : '--'}</td>
             <td><span class="tag ${badgeClass}">${estadoCk}</span></td>
             <td><button class="btn sm" onclick="iniciarDesdeTabla('${r.num_reservacion}')">${btnLabel}</button></td>
           </tr>
         `;
       }).join('');
+
     } else {
       tbody.innerHTML = `<tr><td colspan="6" class="mut">Error al cargar reservaciones.</td></tr>`;
     }
@@ -497,19 +509,23 @@ async function renderWizard() {
   } else if (W.step === 3) {
     body.innerHTML = `
       <div class="card">
-        <h3>Paso 3: Registro de Equipaje (ST07)</h3>
-        <p class="mut mt">Registra las piezas y el peso total del pasajero.</p>
+                <h3>Paso 3: Registro de Equipaje (ST07 · Interfaz 10 sin kilos)</h3>
+        <p class="mut mt">Detalla cada pieza de equipaje (tipo y descripción). El envío hacia Equipaje/Embarque se realiza sin kilos.</p>
         <div class="grid mt">
           <div>
             <label for="eq-n">Piezas Totales</label>
-            <input id="eq-n" type="number" min="1" value="${W.mal.n}">
+            <input id="eq-n" type="number" min="0" max="10" value="${W.mal.n}" oninput="renderDetalleMaletas()">
           </div>
           <div>
-            <label for="eq-kg">Peso Total (kg)</label>
-                        <input id="eq-kg" type="number" min="1" value="${W.mal.kg}">
+            <label for="eq-vip">Tipo de Pase</label>
+            <select id="eq-vip">
+              <option value="false">Estándar</option>
+              <option value="true">VIP</option>
+            </select>
           </div>
         </div>
         <div id="eq-detalle" class="mt"></div>
+
         <div class="row sp mt">
           <button class="btn ghost" onclick="W.step = 2; renderWizard()">Atrás</button>
           <button class="btn" onclick="enviarEquipaje()">Registrar Equipaje y Generar Pase</button>
@@ -638,8 +654,8 @@ function renderDetalleMaletas() {
 }
 
 async function enviarEquipaje() {
-  W.mal.n = +$("#eq-n").value;
-  W.mal.kg = +$("#eq-kg").value;
+    W.mal.n = +$("#eq-n").value;
+  const isVip = $("#eq-vip")?.value === "true";
   const pieces = [];
   for (let i = 1; i <= W.mal.n; i++) {
     pieces.push({
@@ -647,14 +663,15 @@ async function enviarEquipaje() {
       descripcion: $(`#eq-desc-${i}`)?.value || `Maleta ${i}`
     });
   }
-  logTrace("ST07", `POST /api/check-in/luggage (checkInId: ${currentCheckInId})`, "INFO");
+  logTrace("ST07", `POST /api/check-in/luggage (checkInId: ${currentCheckInId}, piezas: ${W.mal.n}, sin kilos)`, "INFO");
 
   try {
     const res = await fetch('/api/check-in/luggage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ checkInId: Number(currentCheckInId), bagCount: W.mal.n, totalWeightKg: W.mal.kg, isVip: false, pieces })
+      body: JSON.stringify({ checkInId: Number(currentCheckInId), bagCount: W.mal.n, totalWeightKg: 0, isVip, pieces })
     });
+
 
     const data = await res.json();
     if (data.success) {
