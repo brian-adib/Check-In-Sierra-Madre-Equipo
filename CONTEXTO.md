@@ -348,3 +348,9 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
   - Agregada función `renderDetalleMaletas()` en el Paso 3 del Wizard (`#eq-detalle`) vinculada a `#eq-n` para capturar `tipo` y `descripcion` individual por maleta.
   - Actualizada `enviarEquipaje()` para enviar el arreglo `pieces` hacia `POST /api/check-in/luggage`.
 
+### Actualización de Interfaz Web (`public/index.html`) — Equipaje Detallado y Cobro Directo Banco
+- **`public/index.html`:**
+  - Agregada función `renderDetalleMaletas()` en el Paso 3 del Wizard para capturar tipo y descripción individual por pieza de equipaje y enviarla en `pieces` hacia `POST /api/check-in/luggage` (sin kilos hacia E9).
+  - Actualizada `ejecutarCheckoutReal()` con campo `ctaDest` (ID de cliente de Banco) y tarjeta opcional.
+  - Agregada tarjeta interactiva **Cobro Directo a Banco (`DATOS_TRANS`)** (`ejecutarPagoBancoDirecto()`) en la vista de Check-out.
+
