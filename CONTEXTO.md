@@ -354,3 +354,7 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
   - Actualizada `ejecutarCheckoutReal()` con campo `ctaDest` (ID de cliente de Banco) y tarjeta opcional.
   - Agregada tarjeta interactiva **Cobro Directo a Banco (`DATOS_TRANS`)** (`ejecutarPagoBancoDirecto()`) en la vista de Check-out.
 
+### Actualización de Validador de Reservaciones y Documentación Swagger v1.4.0
+- **`src/validators/checkin.validator.js`:** Ampliado `receiveReservationSchema` para aceptar `Folio_reservacion`, `folio_reservacion`, `folio` y el objeto anidado `reservacion` provenientes de E5 Reservaciones.
+- **`docs/swagger.json`:** Actualizado a v1.4.0 con la URL real de Render (`://onrender.com`), codificación UTF-8 limpia y los esquemas normalizados de `RSV_VENDIDA`, `DATOS_TRANS` (`ctaDest`, `nomCompleto`, `cvv`) y `pieces` sin kilos en `/luggage`.
+
