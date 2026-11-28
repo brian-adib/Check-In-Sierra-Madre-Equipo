@@ -33,10 +33,17 @@ async function fetchExternalService(url, options = {}) {
     throw error;
   }
 
-  return data;
+    return data;
+}
+
+function safeIsoDate(val, fallbackDate = new Date()) {
+  if (!val) return fallbackDate.toISOString().slice(0, 10);
+  const d = new Date(val);
+  return Number.isNaN(d.getTime()) ? fallbackDate.toISOString().slice(0, 10) : d.toISOString().slice(0, 10);
 }
 
 // 1. ADAPTADOR TOLERANTE (Interfaz 8 RSV_VENDIDA + Esquema MongoDB Reservaciones)
+
 export const receiveExternalReservation = async (rawBody) => {
   const root =
     rawBody?.data && typeof rawBody.data === 'object' && !Array.isArray(rawBody.data)
@@ -81,19 +88,16 @@ export const receiveExternalReservation = async (rawBody) => {
     idCabinaExt ||
     resObj.tipoCamarote ||
     'PENDIENTE';
-  const numCabina = String(rawCabina).trim().slice(0, 10);
+    const numCabina = String(rawCabina).trim().slice(0, 40);
 
   const salidaRaw =
     resObj.Fecha_salida || resObj.fecha_salida || resObj.fecha_embarque || viajeObj.fechaSalida || resObj.embarkDate;
-  const fechaEmbarque = salidaRaw
-    ? new Date(salidaRaw).toISOString().slice(0, 10)
-    : new Date().toISOString().slice(0, 10);
+  const fechaEmbarque = safeIsoDate(salidaRaw);
 
   const diasViaje = Number(viajeObj.duracionDias || resObj.duracionDias || 7);
   const regresoRaw = resObj.Fecha_regreso || resObj.fecha_regreso || resObj.fecha_desembarque || resObj.disembarkDate;
-  const fechaDesembarque = regresoRaw
-    ? new Date(regresoRaw).toISOString().slice(0, 10)
-    : new Date(new Date(fechaEmbarque).getTime() + diasViaje * 86400000).toISOString().slice(0, 10);
+  const fechaDesembarque = safeIsoDate(regresoRaw, new Date(new Date(fechaEmbarque).getTime() + diasViaje * 86400000));
+
 
   const idEventoTour =
     (resObj['Id_evento/Id_tour'] || resObj.Id_evento || resObj.Id_tour || viajeObj._id || resObj.viaje || null)
@@ -189,7 +193,8 @@ export const receiveExternalReservation = async (rawBody) => {
       );
       const idPasajero = paxRes.rows[0].id_pasajero;
 
-      const numResIndividual = rawList.length === 1 ? baseCode : `${baseCode}-${i + 1}`;
+      const numResIndividual = (rawList.length === 1 ? baseCode : `${baseCode}-${i + 1}`).slice(0, 60);
+
 
       const resInsert = await client.query(
         `INSERT INTO Reservacion (
@@ -499,7 +504,7 @@ export const processPayment = async (data) => {
 export const assignCabin = async (data) => {
   const { checkInId, cabinId } = data;
   const idRegistro = Number(checkInId);
-  const numCabina = String(cabinId).trim().slice(0, 10);
+  const numCabina = String(cabinId).trim().slice(0, 40);
   const targetUrl = process.env.CABIN_AVAILABILITY_URL || CABIN_AVAILABILITY_URL;
 
   let result = null;
@@ -822,7 +827,8 @@ export const processCheckout = async (checkInId, documentNumber, ctaDest, cvv) =
     nombre_completo: nombrePasajero,
     id_cliente_externo: idClienteExt,
     ultimos4_tarj: ultimos4Guardados,
-  } = result.rows; 
+  } = result.rows[0];
+
 
 
 
@@ -932,7 +938,9 @@ export const processCheckout = async (checkInId, documentNumber, ctaDest, cvv) =
       const folio = bankOffline
         ? `PEND-${Date.now()}`.slice(0, 30)
         : String(bankResult?.noTr || bankResult?.transactionId || `FOL-${Date.now()}`).slice(0, 30);
-      const fechaBanco = bankResult?.Fecha ? new Date(bankResult.Fecha) : new Date();
+            const parsedFecha = bankResult?.Fecha ? new Date(bankResult.Fecha) : new Date();
+      const fechaBanco = Number.isNaN(parsedFecha.getTime()) ? new Date() : parsedFecha;
+
 
       const cargoRes = await client.query(
         `INSERT INTO cargo (id_cuenta, id_report_estado, descripcion, monto)
