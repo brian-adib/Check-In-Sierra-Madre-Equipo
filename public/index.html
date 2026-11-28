@@ -896,15 +896,14 @@ async function ejecutarPagoBancoDirecto() {
 
 /* ================= EXPORTAR FORMATO FR011 ================= */
 function generarFR011() {
-  if (!W) return toast("Inicia un Check-in primero", "warn");
+  if (!W || !currentCheckInId) {
+    return toast("Primero debes iniciar un Check-in válido", "warn");
+  }
+  
   const ventana = window.open('', '_blank');
-  if (!ventana) return toast("Permite las ventanas emergentes para ver el FR011", "warn");
-
   ventana.document.write(`
-    <!DOCTYPE html>
-    <html lang="es">
+    <html>
     <head>
-      <meta charset="UTF-8">
       <title>Formato FR011 - Sierra Madre</title>
       <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 40px; color: #333; }
@@ -914,13 +913,12 @@ function generarFR011() {
         .table th, .table td { border: 1px solid #ccc; padding: 12px; text-align: left; font-size: 14px; }
         .table th { background: #f3ead6; width: 30%; color: #0c1f1d; }
         .firma { margin-top: 60px; text-align: center; border-top: 1px solid #000; width: 300px; margin-left: auto; margin-right: auto; padding-top: 10px; font-size: 14px; }
-        .footer { text-align: center; font-size: 10px; color: #888; margin-top: 40px; }
       </style>
     </head>
     <body>
       <div class="header">
-        <h2>Sierra Madre Resort &amp; Casino</h2>
-        <p>Formato FR011 - Registro de Pasajero</p>
+        <h2>Sierra Madre Resort & Casino</h2>
+        <p><strong>Formato FR011 - Registro de Pasajero</strong></p>
       </div>
       <table class="table">
         <tr><th>(1) No. de registro</th><td>CHK-${currentCheckInId}</td></tr>
@@ -929,14 +927,13 @@ function generarFR011() {
         <tr><th>(4) Hora</th><td>${new Date().toLocaleTimeString()}</td></tr>
         <tr><th>(5) Pasajero</th><td>${W.nombre || 'Pasajero registrado en sistema'}</td></tr>
         <tr><th>(6) Documento</th><td>${W.documento || 'Verificado en recepción'}</td></tr>
-        <tr><th>(7) No. de cabina</th><td>${W.cab ? (W.cab.num || W.cab.id) : 'PENDIENTE'}</td></tr>
-        <tr><th>(8) Piezas de equipaje</th><td>${W.mal.n} (${W.mal.kg} kg)</td></tr>
+        <tr><th>(7) No. de cabina</th><td>${W.cab ? W.cab.id : 'PENDIENTE'}</td></tr>
+        <tr><th>(8) Piezas de equipaje</th><td>${W.mal.n}</td></tr>
         <tr><th>(9) Recepcionista</th><td>Admin (Terminal Marítima)</td></tr>
         <tr><th>(10) Observaciones</th><td>Ninguna</td></tr>
       </table>
       <div class="firma">(11) Firma del pasajero</div>
-      <div class="footer">Documento generado automáticamente por el sistema PR11. Para el proyecto escolar, usar datos ficticios.</div>
-      <script>window.print();<\/script>
+      <script>window.print();</script>
     </body>
     </html>
   `);

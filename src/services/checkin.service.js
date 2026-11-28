@@ -412,107 +412,70 @@ export const sendToReservations = async (checkInId) => {
 
 // 4. PROCESAR PAGO (Interfaces 1 y 2 DATOS_TRANS / EDO_TRANS)
 export const processPayment = async (data) => {
-  const { checkInId, amount, documentNumber, ctaDest, nomCompleto, cvv } = data;
+  const { checkInId, amount, documentNumber, ctaDest = 'CUENTA-CRUCERO', cvv = '123' } = data;
   const idRegistro = Number(checkInId);
-  const monto = Number(amount);
-
-  if (!idRegistro || Number.isNaN(idRegistro)) {
-    const err = new Error('ID de registro inválido');
-    err.statusCode = 400;
-    throw err;
-  }
-
-  if (!monto || monto <= 0) {
-    const err = new Error('El monto debe ser mayor a 0');
-    err.statusCode = 400;
-    throw err;
-  }
-
-   const paxInfoRes = await pool.query(
-    `SELECT p.nombre_completo, p.id_cliente_externo, r.ultimos4_tarj
-     FROM Registro_checkin rc
-     JOIN Reservacion r ON rc.id_reservacion = r.id_reservacion
-     JOIN Pasajero p ON r.id_pasajero = p.id_pasajero
-     WHERE rc.id_registro = $1`,
-    [idRegistro]
-  );
-
-  const paxInfo = paxInfoRes.rows[0] || {};
-  const docLimpio = String(
-    documentNumber || (paxInfo.ultimos4_tarj ? `453200000000${paxInfo.ultimos4_tarj}` : '4532015112830366')
-  ).trim();
-  const ultimos4 = docLimpio.slice(-4).padStart(4, '0');
-  const cuentaDestino = String(ctaDest || paxInfo.id_cliente_externo || 'CUENTA-CRUCERO').trim();
-  const nombreTitular = String(nomCompleto || paxInfo.nombre_completo || 'Pasajero Check-in').trim();
   const targetUrl = process.env.BANK_URL || BANK_URL;
 
   let result = null;
   let isBankOffline = false;
 
   try {
+    // CONTRATO EXACTO DE LA MATRIZ (Interfaz 1)
     result = await fetchExternalService(targetUrl, {
       method: 'POST',
       body: JSON.stringify({
-        numTarjeta: docLimpio,
-        nomCompleto: nombreTitular,
-        CVV: String(cvv || '123'),
-        ctaDest: cuentaDestino,
-        Monto: monto,
-      }),
+        numTarjeta: documentNumber,
+        nomCompleto: 'Pasajero Check-in', 
+        CVV: cvv,
+        ctaDest: ctaDest,
+        Monto: amount
+      })
     });
 
-    if (result?.success === false || result?.status === 'DECLINED' || result?.edoTr === 'RECHAZADA') {
-      const error = new Error(result?.message || 'Pago rechazado por el banco');
+    if (result.success === false) {
+      const error = new Error('Payment declined');
       error.code = 'ERR_PAYMENT_PENDING';
       error.statusCode = 402;
       throw error;
     }
   } catch (err) {
-    if (err.code === 'ERR_PAYMENT_PENDING' || err.isBusinessRejection || err.statusCode === 402) {
-      throw err;
-    }
+    if (err.code === 'ERR_PAYMENT_PENDING' || err.isBusinessRejection) throw err;
     console.warn(`[FALLBACK BANCO] Banco caído (${err.message}). Registrando cobro como PENDIENTE.`);
     isBankOffline = true;
-    result = { fallback: true, status: 'PENDIENTE_BANCO', edoTr: 'PENDIENTE', reason: err.message };
+    result = { fallback: true, status: 'PENDIENTE_BANCO', reason: err.message };
   }
 
   const estadoDeposito = isBankOffline ? 'Pendiente' : 'Aprobado';
-  const edoTrans = isBankOffline ? 'PENDIENTE' : String(result?.edoTr || result?.status || 'APROBADA').slice(0, 40);
-  const folio = isBankOffline
-    ? `PEND-${Date.now()}`.slice(0, 30)
-    : String(result?.noTr || result?.transactionId || `FOL-${Date.now()}`).slice(0, 30);
+  const folio = isBankOffline ? `PEND-${Date.now()}` : String(result.noTr || result.transactionId || `FOL-${Date.now()}`).slice(0, 30);
+  const edoTr = result.edoTr || estadoDeposito; // Guardar respuesta oficial EDO_TRANS
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
     const ctaRes = await client.query('SELECT id_cuenta FROM cuenta WHERE id_registro = $1 LIMIT 1', [idRegistro]);
-    const idCuenta =
-      ctaRes.rows[0]?.id_cuenta ||
-      (await client.query("INSERT INTO cuenta (id_registro, estado) VALUES ($1, 'Abierta') RETURNING id_cuenta", [idRegistro]))
-        .rows[0].id_cuenta;
+    const idCuenta = ctaRes.rows[0]?.id_cuenta || (
+      await client.query("INSERT INTO cuenta (id_registro, estado) VALUES ($1, 'Abierta') RETURNING id_cuenta", [idRegistro])
+    ).rows[0].id_cuenta;
 
     const cargoRes = await client.query(
       `INSERT INTO cargo (id_cuenta, descripcion, monto) VALUES ($1, 'Pago Check-in', $2) RETURNING id_cargo`,
-      [idCuenta, monto]
+      [idCuenta, amount]
     );
 
     const cobroRes = await client.query(
       `INSERT INTO cobro (id_cargo, forma_pago, ultimos4, monto) VALUES ($1, 'Tarjeta', $2, $3) RETURNING id_cobro`,
-      [cargoRes.rows[0].id_cargo, ultimos4, monto]
+      [cargoRes.rows[0].id_cargo, String(documentNumber).slice(-4), amount]
     );
 
-        const fechaBanco = result?.Fecha ? new Date(result.Fecha) : new Date();
     await client.query(
-      `INSERT INTO deposito (id_cobro, monto, estado, edo_trans, cta_dest, folio_confirmacion, fecha_respuesta, payload_externo)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [cobroRes.rows[0].id_cobro, monto, estadoDeposito, edoTrans, cuentaDestino, folio, fechaBanco, JSON.stringify(result)]
+      `INSERT INTO deposito (id_cobro, monto, estado, folio_confirmacion, fecha_respuesta, payload_externo, edo_trans, cta_dest) 
+       VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, $6, $7)`,
+      [cobroRes.rows[0].id_cobro, amount, estadoDeposito, folio, JSON.stringify(result), edoTr, ctaDest]
     );
-
 
     await client.query(
       `INSERT INTO comprobante (id_cuenta, monto_cobrado, folio_deposito) VALUES ($1, $2, $3)`,
-      [idCuenta, isBankOffline ? 0 : monto, folio]
+      [idCuenta, isBankOffline ? 0 : amount, folio]
     );
 
     await client.query('COMMIT');
@@ -526,10 +489,9 @@ export const processPayment = async (data) => {
   return {
     message: isBankOffline ? 'Banco no disponible: cobro registrado como PENDIENTE.' : 'Payment processed successfully',
     paymentStatus: estadoDeposito,
-    edoTr: edoTrans,
     fallbackMode: isBankOffline,
     folio,
-    externalResponse: result,
+    externalResponse: result
   };
 };
 
@@ -639,29 +601,14 @@ export const getCabins = async () => {
 // 6. GENERAR QR (SU02) Y NOTIFICAR INTERFAZ 10 DATOS_PASAJERO A E9 (EQUIPAJE / EMBARQUE)
 export const generateQR = async (checkInId) => {
   const idRegistro = Number(checkInId);
+  
+  // Hacemos JOIN con Pasajero para obtener el id_cliente_externo (Interfaz 10)
   const checkInResult = await pool.query(
-    `SELECT
-       rc.estado, rc.qr_payload, r.num_reservacion, p.id_pasajero, p.id_cliente_externo, p.nombre_completo,
-       COALESCE(
-         c.num_cabina,
-         rcab.num_cabina,
-         (SELECT cab.num_cabina
-          FROM Solicitud_cabina sc
-          JOIN Cabina cab ON sc.id_cabina = cab.id_cabina
-          WHERE sc.id_registro = rc.id_registro
-          ORDER BY sc.id_solicitud_cab DESC
-          LIMIT 1)
-       ) AS num_cabina,
-       (SELECT pe.descripcion
-        FROM Envio_equipaje ee
-        JOIN Pieza_equipaje pe ON ee.id_envio = pe.id_envio
-        WHERE ee.id_registro = rc.id_registro
-        LIMIT 1) AS tipo_equipaje
+    `SELECT rc.estado, rc.qr_payload, r.num_reservacion, p.nombre_completo, c.num_cabina, p.id_cliente_externo 
      FROM Registro_checkin rc
      LEFT JOIN Reservacion r ON rc.id_reservacion = r.id_reservacion
      LEFT JOIN Pasajero p ON r.id_pasajero = p.id_pasajero
      LEFT JOIN Cabina c ON rc.id_cabina = c.id_cabina
-     LEFT JOIN Cabina rcab ON r.id_cabina = rcab.id_cabina
      WHERE rc.id_registro = $1`,
     [idRegistro]
   );
@@ -674,27 +621,21 @@ export const generateQR = async (checkInId) => {
   }
 
   const checkIn = checkInResult.rows[0];
-  const publicHost = ['sierra-madre-checkin', 'onrender', 'com'].join('.');
-  const defaultBaseUrl = `https://${publicHost}`;
-  const rawPublicUrl = (process.env.PUBLIC_URL || '').trim();
-  const baseUrl =
-    rawPublicUrl && !rawPublicUrl.endsWith('://onrender.com') ? rawPublicUrl.replace(/\/$/, '') : defaultBaseUrl;
-
+  const baseUrl = process.env.PUBLIC_URL || 'https://sierra-madre-checkin.onrender.com';
   const payload = `${baseUrl}/api/check-in/boarding-pass/${idRegistro}`;
   const qrBase64 = await QRCode.toDataURL(payload);
-
+  
   await pool.query('UPDATE Registro_checkin SET qr_payload = $1 WHERE id_registro = $2', [qrBase64, idRegistro]);
 
+  // CONTRATO EXACTO DE LA MATRIZ (Interfaz 10)
   const datosPasajero = {
-    evento: 'DATOS_PASAJERO',
     id_cabina: checkIn.num_cabina || 'PENDIENTE',
-    noCabina: checkIn.num_cabina || 'PENDIENTE',
     horaRecepcion: new Date().toISOString(),
     noReservacion: checkIn.num_reservacion || `RES-${idRegistro}`,
     nombreCompleto: checkIn.nombre_completo || 'Pasajero',
-    tipoEquipaje: checkIn.tipo_equipaje || 'Sin equipaje registrado',
+    tipoEquipaje: 'General', // Opcional mandar detalle
     estado: checkIn.estado || 'En proceso',
-    id_cliente: checkIn.id_cliente_externo || String(checkIn.id_pasajero || idRegistro),
+    id_cliente: checkIn.id_cliente_externo || 'CLIENTE-DEMO'
   };
 
   const targetBoardingUrl = process.env.BOARDING_URL || BOARDING_URL;
@@ -704,7 +645,7 @@ export const generateQR = async (checkInId) => {
     try {
       const extResp = await fetchExternalService(targetBoardingUrl, {
         method: 'POST',
-        body: JSON.stringify(datosPasajero),
+        body: JSON.stringify(datosPasajero)
       });
       boardingSync = { sent: true, status: 'DELIVERED', response: extResp };
     } catch (syncErr) {
