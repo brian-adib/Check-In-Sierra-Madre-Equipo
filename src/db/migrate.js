@@ -70,22 +70,6 @@ const schemaSQL = `
     estado VARCHAR(10) NOT NULL DEFAULT 'Enviado'
   );
 
-  CREATE TABLE IF NOT EXISTS Pieza_equipaje (
-    id_pieza SERIAL PRIMARY KEY,
-    id_envio INT NOT NULL REFERENCES Envio_equipaje(id_envio),
-    etiqueta VARCHAR(20) NOT NULL,
-    descripcion VARCHAR(100) NOT NULL,
-    estado VARCHAR(10) NOT NULL DEFAULT 'Registrada'
-  );
-
-  CREATE TABLE IF NOT EXISTS reporte_error_equipaje (
-    id_report_error SERIAL PRIMARY KEY,
-    id_envio INT NOT NULL REFERENCES Envio_equipaje(id_envio),
-    id_pieza INT REFERENCES Pieza_equipaje(id_pieza),
-    descripcion VARCHAR(250) NOT NULL,
-    fecha_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-
   -- ================= 6 TABLAS DE CHECK-OUT Y PAGOS =================
 
   CREATE TABLE IF NOT EXISTS reporte_estado (
@@ -144,6 +128,7 @@ const schemaSQL = `
   );
 
   -- ================= COLUMNAS TOLERANTES JSONB Y MATRIZ DE CONECTIVIDAD =================
+  ALTER TABLE Envio_equipaje ADD COLUMN IF NOT EXISTS detalle_piezas JSONB;
   ALTER TABLE Reservacion ADD COLUMN IF NOT EXISTS payload_externo JSONB;
   ALTER TABLE Cabina ADD COLUMN IF NOT EXISTS payload_externo JSONB;
   ALTER TABLE reporte_estado ADD COLUMN IF NOT EXISTS payload_externo JSONB;

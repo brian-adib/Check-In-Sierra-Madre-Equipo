@@ -356,14 +356,11 @@ export const sendToReservations = async (checkInId) => {
     `SELECT
        rc.id_registro, r.num_reservacion, p.id_pasajero, p.id_cliente_externo, p.nombre_completo,
        COALESCE(c.id_cabina_externo, c.num_cabina, rcab.num_cabina, 'PENDIENTE') AS id_cabina_ref,
-       COALESCE(
-         (SELECT pe.descripcion
-          FROM Envio_equipaje ee
-          JOIN Pieza_equipaje pe ON ee.id_envio = pe.id_envio
-          WHERE ee.id_registro = rc.id_registro
-          LIMIT 1),
-         'Equipaje estándar'
-       ) AS tipo_equipaje
+                   COALESCE(
+              (SELECT ee.detalle_piezas->0->>'descripcion' FROM Envio_equipaje ee WHERE ee.id_registro = rc.id_registro ORDER BY ee.id_envio DESC LIMIT 1),
+              'Equipaje estándar'
+            ) AS tipo_equipaje
+
      FROM Registro_checkin rc
      JOIN Reservacion r ON rc.id_reservacion = r.id_reservacion
      JOIN Pasajero p ON r.id_pasajero = p.id_pasajero
@@ -605,7 +602,9 @@ export const getCabins = async () => {
 
 // 6. GENERAR QR (SU02) Y NOTIFICAR INTERFAZ 10 DATOS_PASAJERO A E9 (EQUIPAJE / EMBARQUE)
 export const generateQR = async (checkInId) => {
+  
   const idRegistro = Number(checkInId);
+  
   
   // Hacemos JOIN con Pasajero para obtener el id_cliente_externo (Interfaz 10)
   const checkInResult = await pool.query(
@@ -716,12 +715,6 @@ export const registerLuggage = async (data) => {
     infoRegistro = regRes.rows[0];
     const idCabina = infoRegistro.id_cabina;
 
-    const envRes = await client.query(
-      `INSERT INTO Envio_equipaje (id_registro, id_cabina, estado) VALUES ($1, $2, 'Enviado') RETURNING id_envio`,
-      [idRegistro, idCabina]
-    );
-    idEnvio = envRes.rows[0].id_envio;
-
         const totalIterar = listaPiezas ? listaPiezas.length : Math.max(1, cantidadPiezas);
     for (let i = 0; i < totalIterar; i++) {
       const piezaActual = listaPiezas ? listaPiezas[i] : null;
@@ -733,11 +726,6 @@ export const registerLuggage = async (data) => {
           : `Maleta ${i + 1} de ${totalIterar}`
       ).slice(0, 100);
 
-      await client.query(
-        `INSERT INTO Pieza_equipaje (id_envio, etiqueta, descripcion, estado)
-         VALUES ($1, $2, $3, 'Registrada')`,
-        [idEnvio, etiqueta, descripcion]
-      );
       piezasRegistradas.push({
         etiqueta,
         tipo: piezaActual?.tipo || 'Estándar',
@@ -745,6 +733,15 @@ export const registerLuggage = async (data) => {
         estado: 'Registrada',
       });
     }
+
+    const envRes = await client.query(
+      `INSERT INTO Envio_equipaje (id_registro, id_cabina, estado, detalle_piezas)
+       VALUES ($1, $2, 'Enviado', $3)
+       RETURNING id_envio`,
+      [idRegistro, idCabina, JSON.stringify(piezasRegistradas)]
+    );
+    idEnvio = envRes.rows[0].id_envio;
+
 
 
     await client.query('COMMIT');
