@@ -506,15 +506,18 @@ async function renderWizard() {
           </div>
           <div>
             <label for="eq-kg">Peso Total (kg)</label>
-            <input id="eq-kg" type="number" min="1" value="${W.mal.kg}">
+                        <input id="eq-kg" type="number" min="1" value="${W.mal.kg}">
           </div>
         </div>
+        <div id="eq-detalle" class="mt"></div>
         <div class="row sp mt">
           <button class="btn ghost" onclick="W.step = 2; renderWizard()">Atrás</button>
           <button class="btn" onclick="enviarEquipaje()">Registrar Equipaje y Generar Pase</button>
         </div>
       </div>
     `;
+    renderDetalleMaletas();
+
   } else if (W.step === 4) {
     body.innerHTML = `
       <div class="card">
@@ -612,17 +615,47 @@ async function asignarCabinaReal() {
   }
 }
 
+function renderDetalleMaletas() {
+  const inp = $("#eq-n");
+  const cont = $("#eq-detalle");
+  if (!inp || !cont) return;
+  const n = Math.max(0, +inp.value || 0);
+  if (n === 0) { cont.innerHTML = ""; return; }
+  let html = '<label style="display:block;margin-bottom:6px;">Detalle de piezas (envío a Equipaje sin kilos)</label>';
+  for (let i = 1; i <= n; i++) {
+    html += `
+      <div class="row" style="gap:8px;margin-bottom:6px;">
+        <select id="eq-tipo-${i}" style="max-width:170px;">
+          <option value="Documentada">Documentada</option>
+          <option value="Mano">Equipaje de mano</option>
+          <option value="Portatrajes">Portatrajes</option>
+          <option value="Especial">Especial</option>
+        </select>
+        <input id="eq-desc-${i}" placeholder="Descripción pieza #${i} (ej. Maleta rígida azul)" value="Maleta ${i}">
+      </div>`;
+  }
+  cont.innerHTML = html;
+}
+
 async function enviarEquipaje() {
   W.mal.n = +$("#eq-n").value;
   W.mal.kg = +$("#eq-kg").value;
+  const pieces = [];
+  for (let i = 1; i <= W.mal.n; i++) {
+    pieces.push({
+      tipo: $(`#eq-tipo-${i}`)?.value || "Documentada",
+      descripcion: $(`#eq-desc-${i}`)?.value || `Maleta ${i}`
+    });
+  }
   logTrace("ST07", `POST /api/check-in/luggage (checkInId: ${currentCheckInId})`, "INFO");
 
   try {
     const res = await fetch('/api/check-in/luggage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ checkInId: Number(currentCheckInId), bagCount: W.mal.n, totalWeightKg: W.mal.kg, isVip: false })
+      body: JSON.stringify({ checkInId: Number(currentCheckInId), bagCount: W.mal.n, totalWeightKg: W.mal.kg, isVip: false, pieces })
     });
+
     const data = await res.json();
     if (data.success) {
       logTrace("ST07", `200 OK · Equipaje registrado (${data.data.luggagePayload?.cantidad_piezas || W.mal.n} pz · Cabina ${data.data.luggagePayload?.num_cabina || ''})`, "OK");
@@ -734,7 +767,7 @@ function resolverExcepcion(index, autorizar) {
 
 /* ================= FLUJO CHECK-OUT REAL ================= */
 function renderCheckout() {
-  $("#view").innerHTML = `
+    $("#view").innerHTML = `
     <div class="card">
       <h3>Procesar Check-out (ST08 - ST12)</h3>
       <p class="mut mt">Consulta el reporte de daños con el microservicio de Cabinas y procesa cobros extra con Banco si existen.</p>
@@ -744,8 +777,12 @@ function renderCheckout() {
           <input id="co-checkin-id" type="number" min="1" placeholder="Ej. 1">
         </div>
         <div>
-          <label for="co-doc">Documento del Pasajero (para Banco)</label>
+          <label for="co-doc">Tarjeta del Pasajero (opcional si ya viene en Reserva)</label>
           <input id="co-doc" type="text" placeholder="Ej. 4532111122223333">
+        </div>
+        <div>
+          <label for="co-ctadest">ID Cliente / Cuenta Destino Banco (opcional)</label>
+          <input id="co-ctadest" type="text" placeholder="Ej. CLI-9001 o vacío para auto">
         </div>
       </div>
       <div class="row mt">
@@ -753,41 +790,109 @@ function renderCheckout() {
       </div>
       <div id="checkout-result"></div>
     </div>
+
+    <div class="card mt">
+      <h3>Cobro Directo a Banco (Interfaz 1 · DATOS_TRANS)</h3>
+      <p class="mut mt">Envía un cargo directo al microservicio de Banco usando el ID de cliente / cuenta destino asignado.</p>
+      <div class="grid mt">
+        <div>
+          <label for="pay-checkin-id">Check-In ID</label>
+          <input id="pay-checkin-id" type="number" min="1" placeholder="Ej. 1">
+        </div>
+        <div>
+          <label for="pay-ctadest">ID Cliente / ctaDest (Banco)</label>
+          <input id="pay-ctadest" type="text" placeholder="ID cliente de Banco o vacío para auto">
+        </div>
+        <div>
+          <label for="pay-card">Número de Tarjeta (opcional)</label>
+          <input id="pay-card" type="text" placeholder="4532015112830366">
+        </div>
+        <div>
+          <label for="pay-cvv">CVV</label>
+          <input id="pay-cvv" type="text" value="123" maxlength="4">
+        </div>
+        <div>
+          <label for="pay-amount">Monto ($ MXN)</label>
+          <input id="pay-amount" type="number" min="1" value="250">
+        </div>
+      </div>
+      <div class="row mt">
+        <button class="btn" onclick="ejecutarPagoBancoDirecto()">Enviar Cobro a Banco (DATOS_TRANS)</button>
+      </div>
+      <div id="pay-direct-result" class="mt"></div>
+    </div>
   `;
 }
 
 async function ejecutarCheckoutReal() {
   const checkInId = Number($("#co-checkin-id").value.trim());
-  const documentNumber = $("#co-doc").value.trim();
+  const documentNumber = $("#co-doc").value.trim() || undefined;
+  const ctaDest = $("#co-ctadest").value.trim() || undefined;
   const resDiv = $("#checkout-result");
-  if (!checkInId || !documentNumber) {
-    return toast("Ingresa el Check-In ID numérico y el documento del pasajero", "warn");
+  if (!checkInId) {
+    return toast("Ingresa el Check-In ID numérico", "warn");
   }
+
 
   logTrace("ST08-ST12", `POST /api/check-in/checkout (${checkInId})`, "INFO");
   resDiv.innerHTML = `<div class="note">Consultando Cabinas y procesando liquidación con Banco...</div>`;
 
-  try {
+    try {
     const res = await fetch('/api/check-in/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ checkInId, documentNumber })
+      body: JSON.stringify({ checkInId, documentNumber, ctaDest })
     });
     const data = await res.json();
     if (data.success) {
-      logTrace("ST12", `200 OK · ${data.data.message}`, "OK");
+      logTrace("ST08-ST12", `200 OK · ${data.data.message}`, data.data.fallbackMode ? "WARN" : "OK");
+      resDiv.innerHTML = `<p style="margin-top:10px;"><strong>${data.data.message}</strong></p>`;
       toast("Check-out completado", "ok");
-      resDiv.innerHTML = `<div class="note ok"><b>Check-out Exitoso:</b> ${data.data.message}</div>`;
     } else {
-      logTrace("ST11", data.error?.message || "Error en Check-out", "ERROR");
-      toast(data.error?.message || "No se pudo completar el Check-out", "err");
-      resDiv.innerHTML = `<div class="note err"><b>Error:</b> ${data.error?.message || "Fallo en el proceso"}</div>`;
+      logTrace("ST08-ST12", `Error: ${data.error?.message || 'Fallo'}`, "ERROR");
+      resDiv.innerHTML = `<p style="color:#b91c1c;margin-top:10px;">❌ ${data.error?.message || 'Error en Check-out'}</p>`;
     }
-  } catch (e) {
-    logTrace("ST11", "Error de red al procesar Check-out", "ERROR");
-    resDiv.innerHTML = `<div class="note err">Error de conexión con el servidor.</div>`;
+  } catch {
+    logTrace("ST08-ST12", "Error de red en Check-out", "ERROR");
+    toast("Error de conexión con el servidor", "err");
   }
 }
+
+async function ejecutarPagoBancoDirecto() {
+  const checkInId = Number($("#pay-checkin-id").value.trim());
+  const ctaDest = $("#pay-ctadest").value.trim() || undefined;
+  const documentNumber = $("#pay-card").value.trim() || undefined;
+  const cvv = $("#pay-cvv").value.trim() || undefined;
+  const amount = Number($("#pay-amount").value);
+  const resDiv = $("#pay-direct-result");
+
+  if (!checkInId || !amount) {
+    return toast("Ingresa Check-In ID y Monto válido", "warn");
+  }
+
+  logTrace("DATOS_TRANS", `POST /api/check-in/pay (checkInId: ${checkInId}, ctaDest: ${ctaDest || 'AUTO'}, $${amount})`, "INFO");
+  try {
+    const res = await fetch('/api/check-in/pay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ checkInId, amount, documentNumber, ctaDest, cvv })
+    });
+    const data = await res.json();
+    if (data.success) {
+      const esFallback = data.data.fallbackMode;
+      logTrace("EDO_TRANS", `${data.data.edoTr || data.data.paymentStatus} · Folio: ${data.data.folio}`, esFallback ? "WARN" : "OK");
+      resDiv.innerHTML = `<p style="margin-top:8px;"><strong>${data.data.message}</strong> · Folio: <code>${data.data.folio}</code></p>`;
+      toast(esFallback ? "Banco en contingencia (Pendiente)" : "Cobro aprobado por Banco", esFallback ? "warn" : "ok");
+    } else {
+      logTrace("EDO_TRANS", `Error: ${data.error?.message || 'Rechazado'}`, "ERROR");
+      resDiv.innerHTML = `<p style="color:#b91c1c;margin-top:8px;">❌ ${data.error?.message || 'Error al procesar pago'}</p>`;
+    }
+  } catch {
+    logTrace("EDO_TRANS", "Error de red al conectar con Banco", "ERROR");
+    toast("Error de conexión con el servidor", "err");
+  }
+}
+
 
 /* ================= EXPORTAR FORMATO FR011 ================= */
 function generarFR011() {

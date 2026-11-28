@@ -337,3 +337,14 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
 - **`src/services/checkin.service.js`:**
   - Actualizada `registerLuggage(data)` para persistir descripciones y tipos individuales por pieza en `Pieza_equipaje` y enviar el detalle completo de piezas junto con los 7 campos de la Interfaz 10 (`DATOS_PASAJERO`) hacia E9 sin incluir datos de peso/kilos.
 
+### Despliegue de Normalización de Banco, Tarjeta de Cliente y Equipaje Detallado
+- **Validación y Subida:** Verificación con `eslint` y `vitest` (10/10 pruebas aprobadas) y despliegue hacia rama `main` en Render.
+
+### Localización de Bloques en `public/index.html`
+- **`public/index.html`:** Inspección puntual de secciones `w-mal-n`, `enviarEquipaje` y `view-checkout` para aplicar cambios exactos sin alterar el diseño existente.
+
+### Detalle por Pieza de Equipaje en Wizard (`public/index.html`)
+- **`public/index.html`:**
+  - Agregada función `renderDetalleMaletas()` en el Paso 3 del Wizard (`#eq-detalle`) vinculada a `#eq-n` para capturar `tipo` y `descripcion` individual por maleta.
+  - Actualizada `enviarEquipaje()` para enviar el arreglo `pieces` hacia `POST /api/check-in/luggage`.
+
