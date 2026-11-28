@@ -428,8 +428,8 @@ export const processPayment = async (data) => {
     throw err;
   }
 
-  const paxInfoRes = await pool.query(
-    `SELECT p.nombre_completo, p.id_cliente_externo
+   const paxInfoRes = await pool.query(
+    `SELECT p.nombre_completo, p.id_cliente_externo, r.ultimos4_tarj
      FROM Registro_checkin rc
      JOIN Reservacion r ON rc.id_reservacion = r.id_reservacion
      JOIN Pasajero p ON r.id_pasajero = p.id_pasajero
@@ -438,7 +438,9 @@ export const processPayment = async (data) => {
   );
 
   const paxInfo = paxInfoRes.rows[0] || {};
-  const docLimpio = String(documentNumber || '0000').trim();
+  const docLimpio = String(
+    documentNumber || (paxInfo.ultimos4_tarj ? `453200000000${paxInfo.ultimos4_tarj}` : '4532015112830366')
+  ).trim();
   const ultimos4 = docLimpio.slice(-4).padStart(4, '0');
   const cuentaDestino = String(ctaDest || paxInfo.id_cliente_externo || 'CUENTA-CRUCERO').trim();
   const nombreTitular = String(nomCompleto || paxInfo.nombre_completo || 'Pasajero Check-in').trim();
@@ -500,11 +502,13 @@ export const processPayment = async (data) => {
       [cargoRes.rows[0].id_cargo, ultimos4, monto]
     );
 
+        const fechaBanco = result?.Fecha ? new Date(result.Fecha) : new Date();
     await client.query(
       `INSERT INTO deposito (id_cobro, monto, estado, edo_trans, cta_dest, folio_confirmacion, fecha_respuesta, payload_externo)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, $7)`,
-      [cobroRes.rows[0].id_cobro, monto, estadoDeposito, edoTrans, cuentaDestino, folio, JSON.stringify(result)]
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [cobroRes.rows[0].id_cobro, monto, estadoDeposito, edoTrans, cuentaDestino, folio, fechaBanco, JSON.stringify(result)]
     );
+
 
     await client.query(
       `INSERT INTO comprobante (id_cuenta, monto_cobrado, folio_deposito) VALUES ($1, $2, $3)`,
@@ -714,10 +718,12 @@ export const generateQR = async (checkInId) => {
 
 // 7. REGISTRAR EQUIPAJE (ST07 + Interfaz 10 DATOS_PASAJERO sin kilos hacia E9 Equipaje)
 export const registerLuggage = async (data) => {
-  const { checkInId, bagCount, totalWeightKg, isVip } = data;
+  const { checkInId, bagCount, totalWeightKg, isVip, pieces } = data;
   const idRegistro = Number(checkInId);
-  const cantidadPiezas = Math.max(0, Number(bagCount) || 0);
+  const listaPiezas = Array.isArray(pieces) && pieces.length > 0 ? pieces : null;
+  const cantidadPiezas = listaPiezas ? listaPiezas.length : Math.max(0, Number(bagCount) || 0);
   const pesoTotal = Number(totalWeightKg) || 0;
+
 
   let extraFee = 0;
   if (!isVip) {
@@ -770,21 +776,30 @@ export const registerLuggage = async (data) => {
     );
     idEnvio = envRes.rows[0].id_envio;
 
-    for (let i = 1; i <= Math.max(1, cantidadPiezas); i++) {
-      const etiqueta = `TAG-${idRegistro}-${i}`;
-      const descripcion = `Maleta ${i} de ${Math.max(1, cantidadPiezas)}`;
+        const totalIterar = listaPiezas ? listaPiezas.length : Math.max(1, cantidadPiezas);
+    for (let i = 0; i < totalIterar; i++) {
+      const piezaActual = listaPiezas ? listaPiezas[i] : null;
+      const etiqueta = `TAG-${idRegistro}-${i + 1}`;
+      const tipoTxt = piezaActual?.tipo ? `[${piezaActual.tipo}] ` : '';
+      const descripcion = (
+        piezaActual?.descripcion
+          ? `${tipoTxt}${piezaActual.descripcion}`
+          : `Maleta ${i + 1} de ${totalIterar}`
+      ).slice(0, 100);
 
       await client.query(
-        `INSERT INTO Pieza_equipaje (id_envio, etiqueta, descripcion, estado) VALUES ($1, $2, $3, 'Registrada')`,
+        `INSERT INTO Pieza_equipaje (id_envio, etiqueta, descripcion, estado)
+         VALUES ($1, $2, $3, 'Registrada')`,
         [idEnvio, etiqueta, descripcion]
       );
-
       piezasRegistradas.push({
         etiqueta,
+        tipo: piezaActual?.tipo || 'Estándar',
         descripcion,
         estado: 'Registrada',
       });
     }
+
 
     await client.query('COMMIT');
   } catch (error) {
@@ -839,13 +854,12 @@ export const registerLuggage = async (data) => {
 };
 
 // 8. CHECK-OUT (ST08 - ST12) CON TOLERANCIA A FALLOS EN CABINAS Y BANCO
-export const processCheckout = async (checkInId, documentNumber, ctaDest) => {
+export const processCheckout = async (checkInId, documentNumber, ctaDest, cvv) => {
   const idRegistro = Number(checkInId);
-  const docLimpio = String(documentNumber || '0000').trim();
-  const ultimos4 = docLimpio.slice(-4).padStart(4, '0');
 
   const result = await pool.query(
-    `SELECT COALESCE(rc.id_cabina, r.id_cabina) AS id_cabina, c.num_cabina, p.nombre_completo, p.id_cliente_externo
+    `SELECT COALESCE(rc.id_cabina, r.id_cabina) AS id_cabina, c.num_cabina,
+            p.nombre_completo, p.id_cliente_externo, r.ultimos4_tarj
      FROM Registro_checkin rc
      LEFT JOIN Reservacion r ON rc.id_reservacion = r.id_reservacion
      LEFT JOIN Cabina c ON COALESCE(rc.id_cabina, r.id_cabina) = c.id_cabina
@@ -861,13 +875,20 @@ export const processCheckout = async (checkInId, documentNumber, ctaDest) => {
     throw e;
   }
 
-  const {
+    const {
     id_cabina: idCabina,
     num_cabina: numCabina,
     nombre_completo: nombrePasajero,
     id_cliente_externo: idClienteExt,
-  } = result.rows[0];
+    ultimos4_tarj: ultimos4Guardados,
+  } = result.rows; 
 
+
+
+  const docLimpio = String(
+    documentNumber || (ultimos4Guardados ? `453200000000${ultimos4Guardados}` : '4532015112830366')
+  ).trim();
+  const ultimos4 = docLimpio.slice(-4).padStart(4, '0');
   const cuentaDestino = String(ctaDest || idClienteExt || 'CUENTA-CRUCERO').trim();
   const targetCabinCheckoutUrl = process.env.CABIN_CHECKOUT_URL || CABIN_CHECKOUT_URL;
   const targetBankUrl = process.env.BANK_URL || BANK_URL;
@@ -939,7 +960,7 @@ export const processCheckout = async (checkInId, documentNumber, ctaDest) => {
           body: JSON.stringify({
             numTarjeta: docLimpio,
             nomCompleto: nombrePasajero || 'Pasajero Check-out',
-            CVV: '123',
+            CVV: String(cvv || '123'),
             ctaDest: cuentaDestino,
             Monto: Number(cabinReport.amount),
           }),
@@ -970,6 +991,7 @@ export const processCheckout = async (checkInId, documentNumber, ctaDest) => {
       const folio = bankOffline
         ? `PEND-${Date.now()}`.slice(0, 30)
         : String(bankResult?.noTr || bankResult?.transactionId || `FOL-${Date.now()}`).slice(0, 30);
+      const fechaBanco = bankResult?.Fecha ? new Date(bankResult.Fecha) : new Date();
 
       const cargoRes = await client.query(
         `INSERT INTO cargo (id_cuenta, id_report_estado, descripcion, monto)
@@ -987,7 +1009,7 @@ export const processCheckout = async (checkInId, documentNumber, ctaDest) => {
 
       await client.query(
         `INSERT INTO deposito (id_cobro, monto, estado, edo_trans, cta_dest, folio_confirmacion, fecha_respuesta, payload_externo)
-         VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, $7)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           cobroRes.rows[0].id_cobro,
           cabinReport.amount,
@@ -995,6 +1017,7 @@ export const processCheckout = async (checkInId, documentNumber, ctaDest) => {
           edoTrans,
           cuentaDestino,
           folio,
+          fechaBanco,
           JSON.stringify(bankResult),
         ]
       );
@@ -1030,6 +1053,7 @@ export const processCheckout = async (checkInId, documentNumber, ctaDest) => {
   }
 };
 
+
 // 9. PASE DE ABORDAR
 export const getBoardingPassData = async (checkInId) => {
   const res = await pool.query(
@@ -1047,3 +1071,5 @@ export const getBoardingPassData = async (checkInId) => {
   if (res.rows.length === 0) return null;
   return res.rows[0];
 };
+
+

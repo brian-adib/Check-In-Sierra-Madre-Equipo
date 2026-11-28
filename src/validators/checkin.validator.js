@@ -21,11 +21,15 @@ export const initiateCheckInSchema = z.object({
 
 export const payCheckInSchema = z.object({
   body: z.object({
-    checkInId: z.union([z.number(), z.string().min(1)]),
-    amount: z.number().positive(),
-    documentNumber: z.string().min(1)
-  }).passthrough()
+    checkInId: z.coerce.number().int().positive(),
+    amount: z.coerce.number().positive(),
+    documentNumber: z.string().min(4).max(25).optional(),
+    ctaDest: z.string().min(1).max(60).optional(),
+    nomCompleto: z.string().min(1).max(100).optional(),
+    cvv: z.string().min(3).max(4).optional(),
+  }),
 });
+
 
 export const assignCabinSchema = z.object({
   body: z.object({
@@ -36,9 +40,18 @@ export const assignCabinSchema = z.object({
 
 export const luggageSchema = z.object({
   body: z.object({
-    checkInId: z.union([z.number(), z.string().min(1)]),
-    bagCount: z.number().min(0),
-    totalWeightKg: z.number().min(0),
-    isVip: z.boolean().optional().default(false)
-  }).passthrough()
+    checkInId: z.coerce.number().int().positive(),
+    bagCount: z.coerce.number().int().min(0),
+    totalWeightKg: z.coerce.number().min(0),
+    isVip: z.boolean().default(false),
+    pieces: z
+      .array(
+        z.object({
+          descripcion: z.string().min(1).max(100),
+          tipo: z.string().max(40).optional(),
+        })
+      )
+      .optional(),
+  }),
 });
+

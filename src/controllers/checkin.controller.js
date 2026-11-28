@@ -105,14 +105,15 @@ export const luggage = async (req, res, next) => {
 
 export const checkout = async (req, res, next) => {
   try {
-    const { checkInId, documentNumber } = req.body;
-    if (!checkInId || !documentNumber) throw new Error('Missing required fields');
-    const result = await checkinService.processCheckout(checkInId, documentNumber);
+    const { checkInId, documentNumber, ctaDest } = req.body;
+    if (!checkInId) throw new Error('Missing required field: checkInId');
+    const result = await checkinService.processCheckout(checkInId, documentNumber, ctaDest);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
 };
+
 
 export const boardingPass = async (req, res, next) => {
   try {

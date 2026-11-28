@@ -282,3 +282,58 @@ Alojada en **Neon** (`cruceroE11-db`, región Oregon) y conectada vía `DATABASE
   - **Interfaz 10 (`DATOS_PASAJERO`):** Envío hacia E9 (Equipaje / Embarque) con los 7 campos oficiales (`id_cabina`, `horaRecepcion`, `noReservacion`, `nombreCompleto`, `tipoEquipaje`, `estado`, `id_cliente`) y detalle de piezas **sin kilos**.
   - **Interfaz 7 (`DISPONIBILIDAD_CABINAS`):** Validación de `estatusOperativo`, `enMantenimiento` y `enlazableReserva` con tolerancia a fallos.
   - **Interfaces 1 y 2 (`DATOS_TRANS` / `EDO_TRANS`):** Soporte de `ctaDest` dinámico y persistencia de `edoTr` y `noTr` en `deposito`.
+
+### Contrato Normalizado de Entrada desde Frontend de Reservaciones
+- **Integración con Equipo 5 (Reservaciones):**
+  - Definido payload unificado desde su flujo de confirmación hacia `POST /api/check-in/reservations`, enviando simultáneamente los campos oficiales de la Matriz (`Folio_reservacion`, `Id_cliente`, `Id_cabina`, `Id_evento/Id_tour`, `Nombre_viaje`, `Fecha_salida`, `Fecha_regreso`, `Paquete`, `Num_huespedes`, `Estatus`, `Total`, `Fecha_emision`, `Num_tarj`) y los objetos completos de MongoDB (`cliente`, `viaje`, `reservacion`).
+      // Enviar reservación normalizada al microservicio de Check-in (Equipo 11)
+      try {
+        const hostCheckin = ['sierra-madre-checkin', 'onrender', 'com'].join('.');
+        const salida = viaje.fechaSalida ? new Date(viaje.fechaSalida) : new Date();
+        const regreso = new Date(salida.getTime() + (viaje.duracionDias || 7) * 86400000);
+
+        await fetch(`https://${hostCheckin}/api/check-in/reservations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            Folio_reservacion: data.folio || data._id,
+            Id_cliente: cliente._id,
+            Id_cabina: data.numeroCamarote || tipoCamarote,
+            'Id_evento/Id_tour': viaje._id,
+            Nombre_viaje: viaje.destino,
+            Fecha_salida: salida.toISOString().slice(0, 10),
+            Fecha_regreso: regreso.toISOString().slice(0, 10),
+            Paquete: tipoCamarote,
+            Num_huespedes: numeroPasajeros,
+            Estatus: data.estado || 'Vigente',
+            Total: importe,
+            Fecha_emision: data.createdAt || new Date().toISOString(),
+            Num_tarj: tarjeta,
+            cliente,
+            viaje,
+            reservacion: data,
+          }),
+        });
+      } catch (syncErr) {
+        console.warn('No se pudo sincronizar con Check-in:', syncErr);
+      }
+
+### Normalización de Pagos, Tarjeta del Cliente y Cuenta Destino con Banco (Interfaces 1 y 2 `DATOS_TRANS` / `EDO_TRANS`)
+- **`src/validators/checkin.validator.js`, `src/controllers/checkin.controller.js`:**
+  - Agregados parámetros opcionales `ctaDest`, `nomCompleto` y `cvv` en `payCheckInSchema` y `checkout` para soportar el ID de cliente / cuenta destino del microservicio de Banco.
+- **`src/services/checkin.service.js`:**
+  - Actualizados `processPayment` y `processCheckout` para recuperar automáticamente `ultimos4_tarj` e `id_cliente_externo` desde `Reservacion` y `Pasajero` en Neon cuando no se proporcionan manualmente, y persistir la `Fecha` de `EDO_TRANS` en `deposito`.
+
+### Normalización Completa de Liquidación en Check-out (`processCheckout`)
+- **`src/services/checkin.service.js`:**
+  - Actualizada `processCheckout(checkInId, documentNumber, ctaDest, cvv)` para recuperar automáticamente `ultimos4_tarj` e `id_cliente_externo` desde `Reservacion` y `Pasajero` en Neon, soportar `cvv` y `ctaDest` dinámicos hacia Banco (`DATOS_TRANS`), y persistir `Fecha`, `edo_trans` y `cta_dest` (`EDO_TRANS`) en `deposito`.
+
+### Corrección de Referencia de Tarjeta en `processPayment`
+- **`src/services/checkin.service.js`:** Sustituida referencia `ultimos4Guardados` por `paxInfo.ultimos4_tarj` dentro de `processPayment`, logrando 0 errores en ESLint y 10/10 pruebas aprobadas.
+
+### Registro Detallado de Piezas de Equipaje y Envío Normalizado a E9 (Sin Kilos)
+- **`src/validators/checkin.validator.js`:**
+  - Agregado campo opcional `pieces` (`[{ descripcion, tipo }]`) en `luggageSchema`.
+- **`src/services/checkin.service.js`:**
+  - Actualizada `registerLuggage(data)` para persistir descripciones y tipos individuales por pieza en `Pieza_equipaje` y enviar el detalle completo de piezas junto con los 7 campos de la Interfaz 10 (`DATOS_PASAJERO`) hacia E9 sin incluir datos de peso/kilos.
+
